@@ -1,0 +1,29 @@
+{
+  "name": "Diforma SmartLoad",
+  "short_name": "SmartLoad",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#e6f0fa",
+  "theme_color": "#00156e",
+  "icons": [
+    {
+      "src": "https://diformainstore.com/wp-content/uploads/2021/04/cropped-Diforma-Icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "https://diformainstore.com/wp-content/uploads/2021/04/cropped-Diforma-Icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+  "file_handlers": [
+    {
+      "action": "./index.html",
+      "accept": {
+        "text/xml": [".load"],
+        "application/json": [".json"]
+      }
+    }
+  ]
+}

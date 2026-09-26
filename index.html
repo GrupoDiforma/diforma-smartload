@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <!-- Configuración PWA -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#00156e">
+  <link rel="apple-touch-icon" href="https://diformainstore.com/wp-content/uploads/2021/04/cropped-Diforma-Icon-192x192.png">
+  
+  <link rel="icon" type="image/png" href="https://diformainstore.com/wp-content/uploads/2021/04/cropped-Diforma-Icon-32x32.png">
+  <title>Diforma SmartLoad</title>
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  
+  <style>
+    body { margin: 0; font-family: 'Inter', 'Segoe UI', Tahoma, sans-serif; background: #e6f0fa; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+    
+    #ribbon { background: #d3e5fa; border-bottom: 1px solid #99b4d1; padding: 5px 10px; display: flex; gap: 15px; align-items: center; height: 60px; font-size: 11px; color: #00156e; }
+    .ribbon-group { display: flex; gap: 8px; border-right: 1px solid #aebfd6; padding-right: 15px; align-items: center; height: 100%; }
+    .btn { display: flex; flex-direction: column; align-items: center; justify-content: center; background: transparent; border: 1px solid transparent; cursor: pointer; color: #00156e; font-size: 11px; padding: 2px 5px; min-width: 45px;}
+    .btn:hover { background: #ffe299; border: 1px solid #ffd366; border-radius: 3px; }
+    .btn-icon { font-size: 18px; margin-bottom: 2px; }
+    select, input[type="number"], input[type="text"] { padding: 4px; border: 1px solid #99b4d1; color: #00156e; font-size: 11px; border-radius:2px; font-family: 'Inter', sans-serif;}
+
+    #branding-area { margin-left: auto; display: flex; flex-direction: column; align-items: flex-end; justify-content: center; padding-right: 10px; }
+    .app-title { font-weight: 900; font-size: 17px; color: #212529; font-style: normal; letter-spacing: -0.5px; }
+    .app-title span { color: #cc0000; }
+    .app-version { font-weight: bold; font-size: 10px; color: #666; margin-top: 2px; }
+
+    #main-area { display: flex; flex: 1; position: relative; }
+    #canvas-container { flex: 1; background: #e6f0fa; position: relative; outline: none; }
+    #container-selector-panel { position: absolute; top: 10px; left: 10px; background: rgba(255,255,255,0.95); padding: 10px; border-radius: 4px; font-weight: bold; font-size: 11px; border: 1px solid #aebfd6; box-shadow: 0 4px 6px rgba(0,0,0,0.2); z-index: 10; display:flex; flex-direction:column; gap:5px; width: 280px;}
+
+    #bottom-panels { display: flex; height: 180px; background: #f0f0f0; border-top: 1px solid #99b4d1; }
+    #packing-list-panel { flex: 3; display: flex; background: white; margin: 5px; border: 1px solid #aebfd6; }
+    #packing-list-table-container { flex: 1; overflow-y: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 11px; }
+    th { text-align: left; padding: 4px; border-bottom: 1px solid #ccc; background: #f9f9f9; position: sticky; top: 0; z-index: 1; }
+    td { padding: 4px; border-bottom: 1px solid #eee; cursor: pointer; }
+    tr:hover { background-color: #f5f5f5; }
+    tr.selected { background-color: #cce8ff !important; outline: 1px solid #3b82f6; }
+    .color-box { width: 12px; height: 12px; border: 1px solid #000; display: inline-block; vertical-align: middle; }
+
+    #action-buttons { width: 90px; background: #f9f9f9; border-left: 1px solid #ccc; display: flex; flex-direction: column; padding: 5px; gap: 5px; }
+    .side-btn { display: flex; align-items: center; padding: 4px 8px; border: 1px solid #ccc; background: white; cursor: pointer; font-size: 11px; border-radius: 3px; }
+    .side-btn:hover { background: #e0e0e0; }
+
+    #container-info { flex: 1; padding: 10px; background: #e6f0fa; margin: 5px; border: 1px solid #aebfd6; font-size: 11px; overflow-y: auto; }
+    .info-title { color: #00156e; font-weight: bold; margin-bottom: 10px; font-size: 12px; }
+    .progress-row { display: flex; align-items: center; margin-bottom: 8px; }
+    .progress-label { width: 90px; text-align: right; margin-right: 10px; color: #333; }
+    .progress-bar-bg { flex: 1; height: 14px; background: #cce0ff; border: 1px solid #99b4d1; position: relative; }
+    .progress-bar-fill { height: 100%; background: linear-gradient(to bottom, #4caf50, #2e7d32); width: 0%; transition: width 0.5s; }
+    .progress-text { position: absolute; width: 100%; text-align: center; top: 0; left: 0; line-height: 14px; color: black; font-size: 10px; }
+
+    .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.1); z-index: 1000; justify-content: center; align-items: center; }
+    .draggable-modal { display: none; background: #f0f4f9; border: 1px solid #00156e; box-shadow: 0 8px 16px rgba(0,0,0,0.4); font-size: 12px; position: absolute; z-index: 1001; border-radius: 4px; overflow:hidden; }
+    .modal-header-drag { background: #c5d6eb; border-bottom: 1px solid #99b4d1; padding: 6px 10px; font-weight: bold; display: flex; justify-content: space-between; align-items: center; cursor: move; user-select: none; color:#00156e;}
+    
+    .modal-body { padding: 15px 20px; background: #f0f4f9; }
+    .title-gradient { margin: 0 0 15px 0; font-size: 16px; font-style: italic; font-weight: 900; color: #000; position: relative; padding-bottom: 5px; }
+    .title-gradient::after { content: ''; position: absolute; left: 0; bottom: 0; height: 4px; width: 150px; background: linear-gradient(to right, #cc0000, transparent); }
+    
+    .form-group { display: flex; margin-bottom: 10px; align-items: center; }
+    .form-group label { width: 90px; text-align: left; color:#000; }
+    .form-group input[type="number"], .form-group input[type="text"], .form-group select { border: 1px solid #aebfd6; padding: 4px; width: 120px; }
+    
+    .qty-input-normal { background-color: white !important; color: black !important; font-weight: normal; border: 1px solid #aebfd6 !important; }
+    .qty-input-red { background-color: #ff0000 !important; color: white !important; font-weight: bold; border: 1px solid #cc0000 !important; }
+    
+    .unit-link { color: blue; text-decoration: underline; margin-left: 5px; cursor: pointer; }
+    .checkbox-group { margin-bottom: 8px; display: flex; align-items: center; }
+    .checkbox-group input { margin-right: 8px; }
+
+    .modal-footer { padding: 12px; text-align: center; background: #f0f4f9; border-top: 1px solid #ccc; display: flex; justify-content: flex-end; gap: 10px; }
+    .modal-footer button { padding: 5px 25px; cursor: pointer; font-size: 12px; border-radius: 4px; font-family: 'Inter', sans-serif;}
+    .btn-cancel { background: white; border: 1px solid #ccc; }
+    .btn-ok { background: white; border: 1px solid #00156e; border-radius: 4px; font-weight:bold;}
+    
+    .link-select { border:none; color:blue; text-decoration:underline; background:transparent; cursor:pointer; font-size:11px; outline:none; padding:0; appearance:none; width: 130px; font-family:inherit;}
+    .link-select:hover { color:darkblue; }
+    .safe-link { cursor: pointer; color: blue; font-size: 12px; display: block; margin-bottom: 10px; }
+    .safe-link:hover { text-decoration: underline; }
+
+    .color-select-wrapper { position: relative; width: 130px; user-select: none; font-family: 'Inter', sans-serif; }
+    .color-select-btn { border: 1px solid #aebfd6; background: #fff; padding: 2px 6px; display: flex; align-items: center; cursor: pointer; font-size: 11px; height: 18px; border-radius: 2px; }
+    .color-swatch { width: 14px; height: 14px; border: 1px solid #000; margin-right: 6px; display: inline-block; flex-shrink: 0; }
+    .color-select-menu { position: absolute; top: 100%; left: 0; width: 100%; background: #fff; border: 1px solid #aebfd6; box-shadow: 0 4px 6px rgba(0,0,0,0.2); z-index: 1002; display: none; max-height: 160px; overflow-y: auto; }
+    .color-select-menu.show { display: block; }
+    .color-option { padding: 4px 6px; display: flex; align-items: center; cursor: pointer; font-size: 11px; }
+    .color-option:hover { background: #cce8ff; }
+    
+    #custom-cont-dims { display: none; margin-left: 10px; align-items: center; gap: 5px; }
+    #custom-cont-dims input { width: 45px; }
+  </style>
+</head>
+<body>
+
+  <input type="file" id="file-input" style="display:none;" accept=".json, .load" onchange="cargarArchivo(event)">
+
+  <div id="ribbon">
+    <div class="ribbon-group">
+      <div class="btn" onclick="limpiarTodo()"><div class="btn-icon">📄</div>New</div>
+      <div class="btn" onclick="document.getElementById('file-input').click()"><div class="btn-icon">📂</div>Open</div>
+      <div style="display:flex; flex-direction:column; gap:2px; margin-left:5px;">
+        <label style="font-size:10px; color:#666;">File Name:</label>
+        <div style="display:flex; align-items:center; gap:5px;">
+            <input type="text" id="save-filename" value="MiCargaLoad" style="width:100px;">
+            <div class="btn" style="flex-direction:row; padding:4px 8px; background:white; border:1px solid #ccc;" onclick="guardarArchivo(false)">💾 Save</div>
+            <div class="btn" style="flex-direction:row; padding:4px 8px; background:white; border:1px solid #ccc;" onclick="guardarArchivo(true)">📥 Save As</div>
+        </div>
+      </div>
+    </div>
+    <div class="ribbon-group">
+      <div class="btn" onclick="abrirModalContainers()"><div class="btn-icon">🗃️</div>Containers</div>
+      <div style="display:flex; flex-direction:column; gap:3px;">
+        <label><b>Default Container:</b></label>
+        <div style="display:flex; align-items:center;">
+          <select id="ribbon-cont-type" onchange="cambiarTipoContenedorGlobal()"></select>
+          <div id="custom-cont-dims">
+            W:<input type="number" id="cc-w" value="235" onchange="optimizarCarga()">
+            D:<input type="number" id="cc-d" value="1200" onchange="optimizarCarga()">
+            H:<input type="number" id="cc-h" value="239" onchange="optimizarCarga()">
+            Kg:<input type="number" id="cc-kg" value="26500" onchange="optimizarCarga()">
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="ribbon-group">
+      <div class="btn" onclick="optimizarCarga()"><div class="btn-icon">⚙️</div>Optimize</div>
+    </div>
+    <div class="ribbon-group">
+      <div class="btn" onclick="abrirModalCaja(false)"><div class="btn-icon">➕</div>Add</div>
+      <div class="btn" onclick="editarItemLista()"><div class="btn-icon">✏️</div>Edit</div>
+      <div class="btn" onclick="duplicarItemLista()"><div class="btn-icon">📑</div>Duplicate</div>
+      <div class="btn" onclick="borrarItemLista()"><div class="btn-icon">❌</div>Delete</div>
+    </div>
+    <div class="ribbon-group">
+      <div class="btn" onclick="bloquearSeleccion(true)"><div class="btn-icon">🔒</div>Lock</div>
+      <div class="btn" onclick="bloquearSeleccion(false)"><div class="btn-icon">🔓</div>Unlock</div>
+    </div>
+    
+    <div id="branding-area">
+      <span class="app-title">Diforma <span>SmartLoad</span></span>
+      <span class="app-version">Version 5.0 (PWA)</span>
+    </div>
+  </div>
+
+  <div id="main-area">
+    <div id="canvas-container"></div>
+    <div id="container-selector-panel">
+      <span>Container Stats & View:</span>
+      <select id="view-cont-select" onchange="actualizarPanelDerecho()"></select>
+      <div id="change-type-div" style="display:none; flex-direction:column; gap:5px; margin-top:5px; border-top:1px solid #ccc; padding-top:5px;">
+        <span>Change <b>THIS</b> container to:</span>
+        <select id="individual-cont-type"></select>
+        <button onclick="cambiarContenedorIndividual()" style="padding:4px; cursor:pointer;">Apply & Re-Optimize</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="bottom-panels">
+    <div id="packing-list-panel">
+      <div id="packing-list-table-container">
+        <table id="pack-table">
+          <thead><tr><th width="20"></th><th width="40">Qty</th><th>Description</th><th width="50">Width</th><th width="50">Depth</th><th width="50">Height</th><th width="50">Weight</th></tr></thead>
+          <tbody id="table-body"></tbody>
+        </table>
+      </div>
+      <div id="action-buttons">
+        <div class="side-btn" onclick="abrirModalCaja(false)">➕ Add</div>
+        <div class="side-btn" onclick="editarItemLista()">✏️ Edit</div>
+        <div class="side-btn" onclick="duplicarItemLista()">📑 Duplicate</div>
+        <div class="side-btn" onclick="borrarItemLista()">❌ Delete</div>
+      </div>
+    </div>
+
+    <div id="container-info">
+      <div class="info-title" id="cont-name">Container Info</div>
+      <div class="progress-row">
+        <div class="progress-label">Volume<br>max.</div>
+        <div style="width: 60px; text-align:right; margin-right:5px;" id="vol-text">0 m³<br>0 m³</div>
+        <div class="progress-bar-bg"><div class="progress-bar-fill" id="bar-vol"></div><div class="progress-text" id="pct-vol">0.0%</div></div>
+      </div>
+      <div class="progress-row">
+        <div class="progress-label">Weight<br>max.</div>
+        <div style="width: 60px; text-align:right; margin-right:5px;" id="wgt-text">0 kg<br>0 kg</div>
+        <div class="progress-bar-bg"><div class="progress-bar-fill" id="bar-wgt" style="background: linear-gradient(to bottom, #90caf9, #1976d2);"></div><div class="progress-text" id="pct-wgt">0.0%</div></div>
+      </div>
+      <div class="progress-row">
+        <div class="progress-label">Loading Length<br>max.<br>remaining</div>
+        <div style="width: 60px; text-align:right; margin-right:5px;" id="len-text">0 cm<br>0 cm<br>0 cm</div>
+        <div class="progress-bar-bg"><div class="progress-bar-fill" id="bar-len"></div><div class="progress-text" id="pct-len">0.0%</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modales... -->
+  <div id="modal-containers" class="draggable-modal" style="width: 500px;">
+    <div class="modal-header-drag" id="modal-containers-header"><span>Container Type Library</span><span style="cursor:pointer;" onclick="cerrarModalContainers()">✖</span></div>
+    <div class="modal-body" style="display:flex; height: 320px; padding:0; background:white;">
+        <div style="width: 160px; background: #e6f0fa; border-right: 1px solid #aebfd6; padding: 15px;">
+            <b style="color:#00156e;">Library Options</b><br><br>
+            <div class="safe-link" onclick="showContLibrary()">📄 View Container Library</div>
+            <div class="safe-link" onclick="showNewContForm()">➕ Define New Type</div>
+        </div>
+        <div id="cont-main-area" style="flex:1; padding: 15px; overflow-y:auto; background:white;"></div>
+    </div>
+  </div>
+
+  <div id="modal-box" class="draggable-modal" style="width: 500px;">
+    <div class="modal-header-drag" id="modal-box-header"><span>Packing List Item</span><span style="cursor:pointer;" onclick="cerrarModalCaja()">✖</span></div>
+    <div class="modal-body">
+      <div class="title-gradient">Packing List Item</div>
+      <input type="hidden" id="m-id">
+      <div class="form-group" style="align-items:flex-start;">
+        <label>Quantity:</label>
+        <div>
+            <input type="number" id="m-qty" class="qty-input-normal" value="10" min="1" oninput="updateFitCalc()" style="width:70px;">
+            <div style="display:inline-block; vertical-align:top; margin-left:10px; font-size:11px;">
+                <span id="fit-text" style="color:#333;">X items fit into</span><br>
+                <select id="m-fit-cont" class="link-select" onchange="updateFitCalc()"></select>
+            </div>
+        </div>
+      </div>
+      <div class="form-group" style="border-bottom: 1px solid #ccc; padding-bottom: 10px; margin-bottom: 10px;">
+        <label>Description:</label><input type="text" id="m-desc" value="Item Nuevo" style="width: 250px;">
+      </div>
+      <div style="display: flex; align-items: center;">
+          <div style="flex: 1;">
+            <div class="form-group"><label style="font-weight:bold;">Shape:</label><select id="m-shape" onchange="updateMini3D(); updateFitCalc();"><option value="pallet">Pallet</option><option value="box">Box</option><option value="barrel">Barrel</option></select></div>
+            <div class="form-group"><label>Width:</label><input type="number" id="m-w" value="129" oninput="updateMini3D(); updateFitCalc();"> <a class="unit-link">cm</a></div>
+            <div class="form-group"><label>Depth:</label><input type="number" id="m-d" value="129" oninput="updateMini3D(); updateFitCalc();"> <a class="unit-link">cm</a></div>
+            <div class="form-group"><label>Height:</label><input type="number" id="m-h" value="165" oninput="updateMini3D(); updateFitCalc();"> <a class="unit-link">cm</a></div>
+            <div class="form-group"><label>Weight:</label><input type="number" id="m-weight" value="0" oninput="updateFitCalc()"> <a class="unit-link">kg</a></div>
+            <div class="form-group"><label>Color:</label>
+                <div class="color-select-wrapper" id="custom-color-dropdown">
+                    <div class="color-select-btn" onclick="toggleColorMenu()"><div class="color-swatch" id="selected-color-swatch" style="background-color: #c5a968;"></div><span id="selected-color-name">Ocre Dorado</span><span style="margin-left:auto; font-size:9px; color:#666;">▼</span></div>
+                    <div class="color-select-menu" id="color-menu-items"></div>
+                </div>
+                <input type="hidden" id="m-color" value="#c5a968">
+            </div>
+          </div>
+          <div id="mini-3d-preview" style="width: 170px; height: 160px; display:flex; justify-content:center; align-items:center; background: transparent;"></div>
+      </div>
+      <div style="border-top: 1px solid #ccc; padding-top: 10px; margin-top: 5px;">
+        <h4 style="margin: 0 0 8px 0; font-size: 11px; font-weight:bold; color: #000;">Handling Restrictions</h4>
+        <div class="checkbox-group"><input type="checkbox" id="m-no-tilt" onchange="updateFitCalc()"><label for="m-no-tilt" style="color:#666;">cannot be tilted</label></div>
+        <div class="checkbox-group"><input type="checkbox" id="m-no-turn" onchange="updateFitCalc()"><label for="m-no-turn" style="color:#666;">cannot be turned</label></div>
+        <div class="checkbox-group"><input type="checkbox" id="m-floor" onchange="updateFitCalc()"><label for="m-floor" style="color:#666;">must stand on floor</label></div>
+      </div>
+      <div style="border-top: 1px solid #ccc; padding-top: 10px; margin-top: 5px;" class="checkbox-group"><input type="checkbox" id="m-danger"><label for="m-danger" style="font-weight:bold; color:#000;">Dangerous Goods</label></div>
+    </div>
+    <div class="modal-footer"><button class="btn-cancel" onclick="cerrarModalCaja()">Cancel</button><button class="btn-ok" onclick="guardarItem()">OK</button></div>
+  </div>
+
+  <script>
+    dragElement(document.getElementById("modal-box")); dragElement(document.getElementById("modal-containers"));
+    function dragElement(elmnt) {
+      let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0; document.getElementById(elmnt.id + "-header").onmousedown = dragMouseDown;
+      function dragMouseDown(e) { if(e.target.tagName === 'SPAN') return; e.preventDefault(); pos3 = e.clientX; pos4 = e.clientY; document.onmouseup = closeDragElement; document.onmousemove = elementDrag; }
+      function elementDrag(e) { e.preventDefault(); pos1 = pos3 - e.clientX; pos2 = pos4 - e.clientY; pos3 = e.clientX; pos4 = e.clientY; elmnt.style.top = (elmnt.offsetTop - pos2) + "px"; elmnt.style.left = (elmnt.offsetLeft - pos1) + "px"; }
+      function closeDragElement() { document.onmouseup = null; document.onmousemove = null; }
+    }
+
+    let globalMats = null; let solidMaterialsCache = {}; let stripedMaterialsCache = {};
+    function initGlobalMats() {
+        if (globalMats) return;
+        globalMats = {
+            contFill: new THREE.MeshBasicMaterial({color: 0x99b4d1, transparent: true, opacity: 0.15, side: THREE.DoubleSide}),
+            contEdge: new THREE.LineBasicMaterial({color: 0x6688aa, linewidth: 2}),
+            contFillSel: new THREE.MeshBasicMaterial({color: 0xffeb3b, transparent: true, opacity: 0.3, side: THREE.DoubleSide}),
+            contEdgeSel: new THREE.LineBasicMaterial({color: 0xff9800, linewidth: 3}),
+            boxEdge: new THREE.LineBasicMaterial({color: 0x333333}), boxEdgeSel: new THREE.LineBasicMaterial({color: 0xff0000, linewidth: 2})
+        };
+    }
+    function getSolidMaterial(colorHex) { if(!solidMaterialsCache[colorHex]) solidMaterialsCache[colorHex] = new THREE.MeshLambertMaterial({ color: colorHex }); return solidMaterialsCache[colorHex]; }
+    function getStripedMaterial(baseColorHex) {
+        if(!stripedMaterialsCache[baseColorHex]) {
+            const canvas = document.createElement('canvas'); canvas.width = 64; canvas.height = 64; const ctx = canvas.getContext('2d');
+            ctx.fillStyle = baseColorHex; ctx.fillRect(0,0,64,64); ctx.lineWidth = 15; ctx.strokeStyle = 'rgba(0, 0, 200, 0.5)'; 
+            ctx.beginPath(); for(let i=-64; i<128; i+=25) { ctx.moveTo(i, 0); ctx.lineTo(i+64, 64); } ctx.stroke();
+            const tex = new THREE.CanvasTexture(canvas); tex.wrapS = THREE.RepeatWrapping; tex.wrapT = THREE.RepeatWrapping;
+            stripedMaterialsCache[baseColorHex] = new THREE.MeshLambertMaterial({ map: tex });
+        } return stripedMaterialsCache[baseColorHex];
+    }
+
+    let scene, camera, renderer, controls, mainGroup; let miniScene, miniCamera, miniRenderer, miniGroup;
+    let raycaster = new THREE.Raycaster(); let mouse = new THREE.Vector2(); let objectsInteractables = []; let is3DInitialized = false;
+    let selectedMeshUUID = null; let selectedGroupId = null;  
+    let listaEmpaque = []; let instanciasCajas = []; let contenedoresFisicos = []; 
+    function generateUUID() { return 'uuid_' + Math.random().toString(36).substring(2) + Date.now().toString(36); }
+
+    let dbContenedores = {
+      '20ft': { nombre: "20' Standard Container", w: 233, h: 235.6, d: 591.8, maxWeight: 21687, maxVol: 32.487, isSystem: true },
+      '40ft': { nombre: "40' Standard Container", w: 233, h: 238.9, d: 1201.5, maxWeight: 26500, maxVol: 67.5, isSystem: true },
+      '40hc': { nombre: "40' High Cube Container", w: 235, h: 269, d: 1201.3, maxWeight: 26500, maxVol: 76.0, isSystem: true }
+    };
+
+    const colorPalette = [
+        { hex: '#c5a968', name: 'Ocre Dorado', index: 0 }, { hex: '#b3aae8', name: 'Morado Suave', index: 1 },
+        { hex: '#dcdab1', name: 'Beige Claro', index: 2 }, { hex: '#ecc1da', name: 'Rosa Pastel', index: 3 },
+        { hex: '#bfeea9', name: 'Verde Menta', index: 4 }, { hex: '#afe8df', name: 'Cian Pastel', index: 5 },
+        { hex: '#e6e4f9', name: 'Blanco Hueso', index: 6 }, { hex: '#eeecb3', name: 'Amarillo Pálido', index: 7 }
+    ];
+
+    function initColorMenu() {
+        let menu = document.getElementById('color-menu-items'); menu.innerHTML = '';
+        colorPalette.forEach(c => {
+            let div = document.createElement('div'); div.className = 'color-option';
+            div.innerHTML = `<div class="color-swatch" style="background-color: ${c.hex};"></div>${c.name}`;
+            div.onclick = () => selectColor(c.hex, c.name); menu.appendChild(div);
+        });
+        document.addEventListener('click', function(e) {
+            let dp = document.getElementById('custom-color-dropdown');
+            if (dp && !dp.contains(e.target)) { document.getElementById('color-menu-items').classList.remove('show'); }
+        });
+    }
+
+    function toggleColorMenu() { document.getElementById('color-menu-items').classList.toggle('show'); }
+    function selectColor(hex, name) { document.getElementById('m-color').value = hex; document.getElementById('selected-color-swatch').style.backgroundColor = hex; document.getElementById('selected-color-name').innerText = name; document.getElementById('color-menu-items').classList.remove('show'); updateMini3D(); }
+    function setColorById(hex) { let color = colorPalette.find(c => c.hex === hex) || colorPalette[0]; document.getElementById('m-color').value = color.hex; document.getElementById('selected-color-swatch').style.backgroundColor = color.hex; document.getElementById('selected-color-name').innerText = color.name; }
+
+    function updateAllContDropdowns() {
+        let selects = ['ribbon-cont-type', 'individual-cont-type', 'm-fit-cont'];
+        selects.forEach(id => {
+            let el = document.getElementById(id); if(!el) return; let currentVal = el.value; el.innerHTML = '';
+            for(let key in dbContenedores) { let opt = document.createElement('option'); opt.value = key; opt.text = dbContenedores[key].nombre; el.appendChild(opt); }
+            if(dbContenedores[currentVal]) el.value = currentVal; if(!currentVal && id === 'ribbon-cont-type') el.value = '40ft';
+        });
+    }
+
+    function abrirModalContainers() { let mb = document.getElementById('modal-containers'); mb.style.display = 'block'; if (!mb.style.top) { mb.style.top = '100px'; mb.style.left = '200px'; } showContLibrary(); }
+    function cerrarModalContainers() { document.getElementById('modal-containers').style.display = 'none'; }
+    function showContLibrary() {
+        let html = '<h4 style="margin-top:0; color:#00156e;">Container Library</h4><table style="width:100%; text-align:left; border-collapse:collapse;"><tr><th style="border-bottom:1px solid #ccc; padding-bottom:5px;">Name</th><th style="border-bottom:1px solid #ccc;">W x H x D (cm)</th><th style="border-bottom:1px solid #ccc;">Max Wgt (kg)</th><th></th></tr>';
+        for(let key in dbContenedores) { let c = dbContenedores[key]; html += `<tr><td style="padding:5px 0;">${c.nombre}</td><td>${c.w} x ${c.h} x ${c.d}</td><td>${c.maxWeight}</td><td>${!c.isSystem ? `<button onclick="borrarContTipo('${key}')" style="cursor:pointer; color:red; border:none; background:transparent;">❌</button>` : ''}</td></tr>`; }
+        document.getElementById('cont-main-area').innerHTML = html + '</table>';
+    }
+    function showNewContForm() {
+        let html = `<h4 style="margin-top:0; color:#00156e;">Define New Container</h4><div class="form-group"><label style="width:120px;">Name:</label><input type="text" id="nc-name" value="Custom Reefer"></div><div class="form-group"><label style="width:120px;">Width (cm):</label><input type="number" id="nc-w" value="230"></div><div class="form-group"><label style="width:120px;">Depth (cm):</label><input type="number" id="nc-d" value="1150"></div><div class="form-group"><label style="width:120px;">Height (cm):</label><input type="number" id="nc-h" value="235"></div><div class="form-group"><label style="width:120px;">Max Weight (kg):</label><input type="number" id="nc-kg" value="25000"></div><div style="margin-top:20px; text-align:right;"><button class="btn-ok" onclick="guardarNuevoContenedor()">💾 Save Container</button></div>`;
+        document.getElementById('cont-main-area').innerHTML = html;
+    }
+    function guardarNuevoContenedor() { let key = 'custom_' + Date.now(); let w = parseFloat(document.getElementById('nc-w').value); let d = parseFloat(document.getElementById('nc-d').value); let h = parseFloat(document.getElementById('nc-h').value); dbContenedores[key] = { nombre: document.getElementById('nc-name').value, w: w, h: h, d: d, maxWeight: parseFloat(document.getElementById('nc-kg').value), maxVol: (w*h*d)/1000000, isSystem: false }; updateAllContDropdowns(); showContLibrary(); }
+    function borrarContTipo(key) { delete dbContenedores[key]; updateAllContDropdowns(); showContLibrary(); }
+
+    function escapeXML(str) { return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+
+    function generateLoadXML() {
+        let xml = '<?xml version="1.0" encoding="UTF-8"?>\n<load xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://www.daubnet.com/ftp/load1.xsd">\n';
+        contenedoresFisicos.forEach((c, idx) => {
+            xml += `  <container id="c${idx+1}">\n    <width>${Math.round(c.w * 10)}</width>\n    <height>${Math.round(c.h * 10)}</height>\n    <length>${Math.round(c.d * 10)}</length>\n    <maxload>${Math.round(c.maxWeight)}</maxload>\n    <description>Container #${idx+1}</description>\n    <type>${escapeXML(c.nombre || "40' Standard Container")}</type>\n  </container>\n`;
+        });
+        xml += `  <packinglist>\n`;
+        listaEmpaque.forEach(item => {
+            xml += `    <packinglistitem>\n      <description>${escapeXML(item.desc || 'Item')}</description>\n      <width>${Math.round(item.w * 10)}</width>\n      <height>${Math.round(item.h * 10)}</height>\n      <depth>${Math.round(item.d * 10)}</depth>\n`;
+            if (item.shape) xml += `      <shape>${item.shape}</shape>\n`;
+            if (item.shape === 'pallet') xml += `      <baseheight>150</baseheight>\n`;
+            let colorObj = colorPalette.find(cp => cp.hex === item.color); let colorIdx = colorObj ? colorObj.index : 0;
+            xml += `      <colorindex>${colorIdx}</colorindex>\n`;
+            if (item.noTilt) xml += `      <notilt/>\n`; if (item.noTurn) xml += `      <noturn/>\n`; if (item.onFloor) xml += `      <floor/>\n`;
+            contenedoresFisicos.forEach((cont, cIdx) => {
+                let cajasDeEsteItem = cont.cajas.filter(c => String(c.groupId) === String(item.id));
+                cajasDeEsteItem.forEach(c => {
+                    let dir = 1;
+                    if (c.drawW === item.w && c.drawH === item.h && c.drawD === item.d) dir = 1;
+                    else if (c.drawW === item.d && c.drawH === item.h && c.drawD === item.w) dir = 2;
+                    else if (c.drawW === item.w && c.drawH === item.d && c.drawD === item.h) dir = 3;
+                    else if (c.drawW === item.d && c.drawH === item.w && c.drawD === item.h) dir = 4;
+                    else if (c.drawW === item.h && c.drawH === item.w && c.drawD === item.d) dir = 5;
+                    else if (c.drawW === item.h && c.drawH === item.d && c.drawD === item.w) dir = 6;
+                    xml += `      <package>\n        <container ref="c${cIdx+1}" />\n        <direction>${dir}</direction>\n        <position-x>${Math.round(c.x * 10)}</position-x>\n        <position-y>${Math.round(c.y * 10)}</position-y>\n        <position-z>${Math.round(c.z * 10)}</position-z>\n      </package>\n`;
+                });
+            });
+            xml += `    </packinglistitem>\n`;
+        });
+        xml += `  </packinglist>\n`;
+        let appData = { listaEmpaque, instanciasCajas, contenedoresFisicos: contenedoresFisicos.map(c => c.tipoKey), dbContenedores };
+        xml += `\n  <!-- DiformaSmartLoadData\n${JSON.stringify(appData)}\n  -->\n</load>`; return xml;
+    }
+
+    async function guardarArchivo(forceSaveAs = false) {
+      if(listaEmpaque.length === 0) { alert("No hay datos para guardar."); return; }
+      let fileName = document.getElementById('save-filename').value.trim(); if(!fileName) fileName = "MiCargaLoad"; if(!fileName.toLowerCase().endsWith(".load")) fileName += ".load";
+      const xmlData = generateLoadXML();
+      if (forceSaveAs && window.showSaveFilePicker) {
+          try {
+              const handle = await window.showSaveFilePicker({ suggestedName: fileName, types: [{ description: 'Load! File', accept: {'text/xml': ['.load']} }] });
+              const writable = await handle.createWritable(); await writable.write(xmlData); await writable.close(); return; 
+          } catch (err) { if(err.name === 'AbortError') return; }
+      }
+      const blob = new Blob([xmlData], {type: "text/xml"}); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = fileName; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+    }
+
+    function cargarArchivo(event) {
+      const file = event.target.files[0]; if (!file) return; const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          let fileContent = e.target.result;
+          if (fileContent.includes("<!-- DiformaSmartLoadData")) {
+              let jsonStr = fileContent.split("<!-- DiformaSmartLoadData")[1].split("-->")[0].trim(); let parsedData = JSON.parse(jsonStr);
+              if(parsedData.dbContenedores) { dbContenedores = parsedData.dbContenedores; updateAllContDropdowns(); }
+              listaEmpaque = parsedData.listaEmpaque || []; instanciasCajas = parsedData.instanciasCajas || []; contenedoresFisicos = [];
+              if(parsedData.contenedoresFisicos) { parsedData.contenedoresFisicos.forEach(tipo => contenedoresFisicos.push(crearContenedor(tipo))); }
+              instanciasCajas.forEach(inst => { let tc = contenedoresFisicos[inst.contIdx]; if(tc) { tc.cajas.push(inst); tc.pesoActual += inst.weight || 0; tc.volActual += (inst.drawW * inst.drawH * inst.drawD) / 1000000; if (inst.z + inst.drawD > tc.lenUsada) tc.lenUsada = inst.z + inst.drawD; } });
+          } else if (fileContent.trim().startsWith("<?xml") || fileContent.trim().startsWith("<load")) {
+              const parser = new DOMParser(); const xmlDoc = parser.parseFromString(fileContent, "text/xml");
+              let contNodes = xmlDoc.getElementsByTagName("container"); contenedoresFisicos = []; let contIdMap = {}; 
+              Array.from(contNodes).forEach((cNode, index) => {
+                  let cId = cNode.getAttribute("id"); let cTypeStr = cNode.getElementsByTagName("type")[0]?.textContent || "";
+                  let tipoKey = '40ft'; let str = cTypeStr.toLowerCase(); if (str.includes("high cube") || str.includes("hc")) tipoKey = '40hc'; else if (str.includes("20")) tipoKey = '20ft'; else if (str.includes("40")) tipoKey = '40ft';
+                  let xmlW = parseInt(cNode.getElementsByTagName("width")[0]?.textContent || 0) / 10; let xmlH = parseInt(cNode.getElementsByTagName("height")[0]?.textContent || 0) / 10; let xmlD = parseInt(cNode.getElementsByTagName("length")[0]?.textContent || 0) / 10; let xmlMaxWgt = parseInt(cNode.getElementsByTagName("maxload")[0]?.textContent || 0);
+                  let cont = crearContenedor(tipoKey); cont.nombre = cTypeStr || cont.nombre; 
+                  if (xmlW > 0) cont.w = xmlW; if (xmlH > 0) cont.h = xmlH; if (xmlD > 0) cont.d = xmlD; if (xmlMaxWgt > 0) cont.maxWeight = xmlMaxWgt;
+                  cont.maxVol = (cont.w * cont.h * cont.d) / 1000000; contenedoresFisicos.push(cont); contIdMap[cId] = index;
+              });
+              const itemNodes = xmlDoc.getElementsByTagName("packinglistitem"); listaEmpaque = []; instanciasCajas = [];
+              Array.from(itemNodes).forEach(node => {
+                  let desc = node.getElementsByTagName("description")[0]?.textContent || "Item Load!"; let w = parseInt(node.getElementsByTagName("width")[0]?.textContent || 0) / 10; let h = parseInt(node.getElementsByTagName("height")[0]?.textContent || 0) / 10; let d = parseInt(node.getElementsByTagName("depth")[0]?.textContent || 0) / 10; let shape = node.getElementsByTagName("shape")[0]?.textContent || "box";
+                  let colorIdx = parseInt(node.getElementsByTagName("colorindex")[0]?.textContent || 0); let colorObj = colorPalette.find(c => c.index === colorIdx) || colorPalette[0];
+                  let noTilt = node.getElementsByTagName("notilt").length > 0; let noTurn = node.getElementsByTagName("noturn").length > 0; let floor = node.getElementsByTagName("floor").length > 0;
+                  let packages = node.getElementsByTagName("package"); let qty = packages.length > 0 ? packages.length : 1; let itemId = generateUUID();
+                  listaEmpaque.push({ id: itemId, shape: shape, qty: qty, desc: desc, w: w, d: d, h: h, weight: 0, color: colorObj.hex, noTilt: noTilt, noTurn: noTurn, onFloor: floor, dangerous: false });
+                  if (packages.length > 0) {
+                      Array.from(packages).forEach(pkg => {
+                          let cRef = pkg.getElementsByTagName("container")[0]?.getAttribute("ref"); let dir = parseInt(pkg.getElementsByTagName("direction")[0]?.textContent || 1); let posX = parseInt(pkg.getElementsByTagName("position-x")[0]?.textContent || 0) / 10; let posY = parseInt(pkg.getElementsByTagName("position-y")[0]?.textContent || 0) / 10; let posZ = parseInt(pkg.getElementsByTagName("position-z")[0]?.textContent || 0) / 10;
+                          let drawW = w, drawH = h, drawD = d; if (dir === 2) { drawW = d; drawH = h; drawD = w; } else if (dir === 3) { drawW = w; drawH = d; drawD = h; } else if (dir === 4) { drawW = d; drawH = w; drawD = h; } else if (dir === 5) { drawW = h; drawH = w; drawD = d; } else if (dir === 6) { drawW = h; drawH = d; drawD = w; }
+                          let contIdx = contIdMap[cRef] !== undefined ? contIdMap[cRef] : 0;
+                          let inst = { uuid: generateUUID(), groupId: itemId, shape: shape, w: w, h: h, d: d, drawW: drawW, drawH: drawH, drawD: drawD, x: posX, y: posY, z: posZ, weight: 0, color: colorObj.hex, locked: false, contIdx: contIdx };
+                          instanciasCajas.push(inst);
+                          let targetCont = contenedoresFisicos[contIdx]; if(targetCont) { targetCont.cajas.push(inst); targetCont.pesoActual += inst.weight; targetCont.volActual += (inst.drawW * inst.drawH * inst.drawD) / 1000000; if (inst.z + inst.drawD > targetCont.lenUsada) targetCont.lenUsada = inst.z + inst.drawD; }
+                      });
+                  }
+              });
+          } else {
+              let parsedData = JSON.parse(fileContent); if(parsedData.dbContenedores) { dbContenedores = parsedData.dbContenedores; updateAllContDropdowns(); }
+              listaEmpaque = parsedData.listaEmpaque || []; instanciasCajas = parsedData.instanciasCajas || []; contenedoresFisicos = [];
+              if(parsedData.contenedoresFisicos) { parsedData.contenedoresFisicos.forEach(tipo => contenedoresFisicos.push(crearContenedor(tipo))); }
+              instanciasCajas.forEach(inst => { let tc = contenedoresFisicos[inst.contIdx]; if(tc) { tc.cajas.push(inst); tc.pesoActual += inst.weight || 0; tc.volActual += (inst.drawW * inst.drawH * inst.drawD) / 1000000; if (inst.z + inst.drawD > tc.lenUsada) tc.lenUsada = inst.z + inst.drawD; } });
+          }
+          contenedoresFisicos = contenedoresFisicos.filter(c => c.cajas.length > 0);
+          if (contenedoresFisicos.length === 0) { let defaultType = document.getElementById('ribbon-cont-type').value || '40ft'; contenedoresFisicos.push(crearContenedor(defaultType)); }
+          document.getElementById('save-filename').value = file.name.replace(/\.[^/.]+$/, ""); document.getElementById('file-input').value = ''; 
+          if(contenedoresFisicos.length > 0) { document.getElementById('ribbon-cont-type').value = contenedoresFisicos[0].tipoKey; }
+          actualizarTabla(); actualizarUIContenedores();
+        } catch(err) { alert("Error leyendo archivo. Asegúrate de que el formato sea válido."); console.error(err); }
+      }; reader.readAsText(file);
+    }
+
+    function updateFitCalc() {
+        let w = parseFloat(document.getElementById('m-w').value) || 1; let d = parseFloat(document.getElementById('m-d').value) || 1; let h = parseFloat(document.getElementById('m-h').value) || 1; let weight = parseFloat(document.getElementById('m-weight').value) || 0; let qty = parseInt(document.getElementById('m-qty').value) || 1;
+        let noTilt = document.getElementById('m-no-tilt').checked; let noTurn = document.getElementById('m-no-turn').checked; let contKey = document.getElementById('m-fit-cont').value; let cont = dbContenedores[contKey]; if(!cont) return;
+        let rots = obtenerRotaciones({w:w, h:h, d:d, noTilt:noTilt, noTurn:noTurn}); let maxFit = 0;
+        for(let rot of rots) {
+            let nx = Math.floor(cont.w / rot.w); let ny = Math.floor(cont.h / rot.h); let nz = Math.floor(cont.d / rot.d); let fitUnits = nx * ny * nz;
+            if(weight > 0) { let maxByWeight = Math.floor(cont.maxWeight / weight); if(fitUnits > maxByWeight) fitUnits = maxByWeight; }
+            if(fitUnits > maxFit) maxFit = fitUnits;
+        }
+        document.getElementById('fit-text').innerText = maxFit + " items fit into"; document.getElementById('m-qty').className = (qty > maxFit) ? 'qty-input-red' : 'qty-input-normal';
+    }
+
+    function initMini3D() {
+        if(miniRenderer) return; initGlobalMats();
+        const container = document.getElementById('mini-3d-preview'); miniScene = new THREE.Scene(); miniCamera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 1, 1000); miniCamera.position.set(150, 150, 200); miniCamera.lookAt(0, 0, 0);
+        miniRenderer = new THREE.WebGLRenderer({antialias: true, alpha: true}); miniRenderer.setSize(container.clientWidth, container.clientHeight); container.appendChild(miniRenderer.domElement);
+        miniScene.add(new THREE.AmbientLight(0xffffff, 0.7)); const dirLight = new THREE.DirectionalLight(0xffffff, 0.6); dirLight.position.set(100, 200, 100); miniScene.add(dirLight);
+        miniGroup = new THREE.Group(); miniScene.add(miniGroup);
+        function animateMini() { if (document.getElementById('modal-box').style.display === 'block') { if(miniGroup) miniGroup.rotation.y -= 0.015; miniRenderer.render(miniScene, miniCamera); } requestAnimationFrame(animateMini); } animateMini();
+    }
+
+    function updateMini3D() {
+        if(!miniRenderer) initMini3D(); while(miniGroup.children.length > 0) { let child = miniGroup.children[0]; if(child.geometry) child.geometry.dispose(); miniGroup.remove(child); }
+        let shape = document.getElementById('m-shape').value; let w = parseFloat(document.getElementById('m-w').value) || 10; let d = parseFloat(document.getElementById('m-d').value) || 10; let h = parseFloat(document.getElementById('m-h').value) || 10;
+        let mat = getSolidMaterial(document.getElementById('m-color').value); let edgeMat = globalMats.boxEdge; if(w < 1) w = 1; if(d < 1) d = 1; if(h < 1) h = 1;
+        if (shape === 'barrel') {
+            let r = Math.min(w, d) / 2; let geo = new THREE.CylinderGeometry(r, r, h, 32); miniGroup.add(new THREE.Mesh(geo, mat)); miniGroup.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo), edgeMat));
+        } else if (shape === 'pallet') {
+            let palletH = Math.min(15, h * 0.2); let loadH = h - palletH; if(loadH<1) loadH=1; let deckGeo = new THREE.BoxGeometry(w, 3, d); deckGeo.translate(0, -h/2 + palletH - 1.5, 0); miniGroup.add(new THREE.Mesh(deckGeo, getSolidMaterial('#8B5A2B'))); miniGroup.add(new THREE.LineSegments(new THREE.EdgesGeometry(deckGeo), edgeMat));
+            let sw = Math.min(12, w * 0.15); let sh = palletH - 3;
+            for(let i=0; i<3; i++) { let sGeo = new THREE.BoxGeometry(sw, sh, d); let px = -w/2 + sw/2; if(i===1) px = 0; if(i===2) px = w/2 - sw/2; sGeo.translate(px, -h/2 + sh/2, 0); miniGroup.add(new THREE.Mesh(sGeo, getSolidMaterial('#8B5A2B'))); miniGroup.add(new THREE.LineSegments(new THREE.EdgesGeometry(sGeo), edgeMat)); }
+            let loadGeo = new THREE.BoxGeometry(w, loadH, d); loadGeo.translate(0, -h/2 + palletH + loadH/2, 0); miniGroup.add(new THREE.Mesh(loadGeo, mat)); miniGroup.add(new THREE.LineSegments(new THREE.EdgesGeometry(loadGeo), edgeMat));
+        } else { let geo = new THREE.BoxGeometry(w, h, d); miniGroup.add(new THREE.Mesh(geo, mat)); miniGroup.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo), edgeMat)); }
+        let maxDim = Math.max(w, d, h); let scale = 110 / maxDim; miniGroup.scale.set(scale, scale, scale);
+    }
+
+    function limpiarTodo() {
+        listaEmpaque = []; instanciasCajas = []; contenedoresFisicos = []; selectedGroupId = null; selectedMeshUUID = null;
+        document.getElementById('file-input').value = ''; document.getElementById('save-filename').value = 'MiCargaLoad';
+        actualizarTabla(); const defaultType = document.getElementById('ribbon-cont-type').value || '40ft'; contenedoresFisicos = [crearContenedor(defaultType)]; actualizarUIContenedores();
+    }
+    
+    function abrirModalCaja(esEdicion) {
+      const mb = document.getElementById('modal-box'); mb.style.display = 'block'; if (!mb.style.top) { mb.style.top = '100px'; mb.style.left = '350px'; } 
+      if(!esEdicion) { document.getElementById('m-id').value = ''; document.getElementById('m-shape').value = 'pallet'; document.getElementById('m-qty').value = 10; document.getElementById('m-desc').value = 'Item Nuevo'; document.getElementById('m-w').value = 129; document.getElementById('m-d').value = 129; document.getElementById('m-h').value = 165; document.getElementById('m-weight').value = 0; setColorById('#c5a968'); document.getElementById('m-no-tilt').checked = false; document.getElementById('m-no-turn').checked = false; document.getElementById('m-floor').checked = false; document.getElementById('m-danger').checked = false; }
+      setTimeout(() => { updateMini3D(); updateFitCalc(); }, 50); 
+    }
+
+    function cerrarModalCaja() { document.getElementById('modal-box').style.display = 'none'; }
+    
+    function guardarItem() {
+      const id = document.getElementById('m-id').value; const item = { id: id ? String(id) : generateUUID(), shape: document.getElementById('m-shape').value, qty: parseInt(document.getElementById('m-qty').value), desc: document.getElementById('m-desc').value, w: parseFloat(document.getElementById('m-w').value), d: parseFloat(document.getElementById('m-d').value), h: parseFloat(document.getElementById('m-h').value), weight: parseFloat(document.getElementById('m-weight').value), color: document.getElementById('m-color').value, noTilt: document.getElementById('m-no-tilt').checked, noTurn: document.getElementById('m-no-turn').checked, onFloor: document.getElementById('m-floor').checked, dangerous: document.getElementById('m-danger').checked };
+      if (id === '') { listaEmpaque.push(item); } else { const index = listaEmpaque.findIndex(i => String(i.id) === String(id)); if(index > -1) listaEmpaque[index] = item; }
+      cerrarModalCaja(); actualizarTabla(); optimizarCarga();
+    }
+
+    function seleccionarFila(id) { id = String(id); if (String(selectedGroupId) === id) { selectedGroupId = null; } else { selectedGroupId = id; } selectedMeshUUID = null; actualizarTabla(); actualizarRenderCajas(); }
+    
+    function editarItemLista(idParaEditar = null) {
+      const targetId = idParaEditar || selectedGroupId; if(!targetId) { alert("Selecciona un item de la lista."); return; }
+      const item = listaEmpaque.find(i => String(i.id) === String(targetId)); if(!item) return;
+      document.getElementById('m-id').value = item.id; document.getElementById('m-shape').value = item.shape || 'box'; document.getElementById('m-qty').value = item.qty; document.getElementById('m-desc').value = item.desc; document.getElementById('m-w').value = item.w; document.getElementById('m-d').value = item.d; document.getElementById('m-h').value = item.h; document.getElementById('m-weight').value = item.weight; setColorById(item.color); document.getElementById('m-no-tilt').checked = item.noTilt; document.getElementById('m-no-turn').checked = item.noTurn; document.getElementById('m-floor').checked = item.onFloor; document.getElementById('m-danger').checked = item.dangerous || false; abrirModalCaja(true);
+    }
+
+    function duplicarItemLista() {
+        if(!selectedGroupId) { alert("Selecciona un item de la lista para duplicar."); return; }
+        const itemOriginal = listaEmpaque.find(i => String(i.id) === String(selectedGroupId)); if(!itemOriginal) return;
+        const itemCopia = { ...itemOriginal, id: generateUUID() }; listaEmpaque.push(itemCopia); selectedGroupId = itemCopia.id; actualizarTabla(); optimizarCarga();
+    }
+    
+    function borrarItemLista() { if(!selectedGroupId) return; listaEmpaque = listaEmpaque.filter(i => String(i.id) !== String(selectedGroupId)); selectedGroupId = null; actualizarTabla(); optimizarCarga(); }
+
+    function actualizarTabla() {
+      const tbody = document.getElementById('table-body'); let html = '';
+      listaEmpaque.forEach(item => {
+        const isSel = String(item.id) === String(selectedGroupId) ? 'selected' : ''; let icono = item.shape === 'barrel' ? '🛢️' : (item.shape === 'pallet' ? '🪵' : '📦'); if(item.dangerous) icono = '☣️ ' + icono;
+        html += `<tr class="${isSel}" data-id="${item.id}" onclick="seleccionarFila('${item.id}')" ondblclick="editarItemLista('${item.id}')"><td><div class="color-box" style="background-color: ${item.color};"></div></td><td style="text-align:right;">${item.qty}</td><td>${icono} ${item.desc}</td><td style="text-align:right;">${item.w}</td><td style="text-align:right;">${item.d}</td><td style="text-align:right;">${item.h}</td><td style="text-align:right;">${item.weight}</td></tr>`;
+      }); tbody.innerHTML = html;
+    }
+
+    function intersecta3D(b1, b2) { const eps = 0.2; return ( b1.x + eps < b2.x + b2.drawW && b1.x + b1.drawW - eps > b2.x && b1.y + eps < b2.y + b2.drawH && b1.y + b1.drawH - eps > b2.y && b1.z + eps < b2.z + b2.drawD && b1.z + b1.drawD - eps > b2.z ); }
+
+    function obtenerRotaciones(caja) {
+      let rots = []; let w = caja.w, h = caja.h, d = caja.d; rots.push({w: w, h: h, d: d}); 
+      if (!caja.noTurn) rots.push({w: d, h: h, d: w}); 
+      if (!caja.noTilt) { rots.push({w: w, h: d, d: h}); if (!caja.noTurn) rots.push({w: d, h: w, d: h}); rots.push({w: h, h: w, d: d}); if (!caja.noTurn) rots.push({w: h, h: d, d: w}); }
+      let unicos = []; rots.forEach(r => { if(!unicos.some(u => u.w===r.w && u.h===r.h && u.d===r.d)) unicos.push(r); }); return unicos;
+    }
+
+    function sincronizarInstancias() {
+      instanciasCajas = instanciasCajas.filter(inst => listaEmpaque.some(item => String(item.id) === String(inst.groupId)));
+      listaEmpaque.forEach(item => {
+         let insts = instanciasCajas.filter(i => String(i.groupId) === String(item.id)); let diff = item.qty - insts.length;
+         if (diff > 0) { for(let i=0; i<diff; i++) instanciasCajas.push({ ...item, groupId: item.id, uuid: generateUUID(), locked: false }); } 
+         else if (diff < 0) {
+             let toRemove = -diff;
+             for(let i=instanciasCajas.length-1; i>=0 && toRemove>0; i--) { if(String(instanciasCajas[i].groupId) === String(item.id) && !instanciasCajas[i].locked) { instanciasCajas.splice(i, 1); toRemove--; } }
+             for(let i=instanciasCajas.length-1; i>=0 && toRemove>0; i--) { if(String(instanciasCajas[i].groupId) === String(item.id)) { instanciasCajas.splice(i, 1); toRemove--; } }
+         }
+         instanciasCajas.forEach(inst => { if(String(inst.groupId) === String(item.id)) { inst.shape = item.shape || 'box'; inst.w = item.w; inst.d = item.d; inst.h = item.h; inst.weight = item.weight; inst.color = item.color; inst.noTurn = item.noTurn; inst.noTilt = item.noTilt; inst.onFloor = item.onFloor; } });
+      });
+    }
+
+    function obtenerContenedorActivo() { let key = document.getElementById('ribbon-cont-type').value; return dbContenedores[key] || dbContenedores['40ft']; }
+    function crearContenedor(tipoKey) { let db = dbContenedores[tipoKey] || obtenerContenedorActivo(); let tk = dbContenedores[tipoKey] ? tipoKey : document.getElementById('ribbon-cont-type').value; return { tipoKey: tk, nombre: db.nombre, w: db.w, h: db.h, d: db.d, maxWeight: db.maxWeight, maxVol: db.maxVol, cajas: [], pesoActual: 0, volActual: 0, lenUsada: 0 }; }
+    function cambiarTipoContenedorGlobal() { optimizarCarga(); }
+
+    function testFitInOneContainer(cajasTestGroup, tipoKey) {
+      let estrategias = [
+        (a,b) => (b.onFloor?1:0) - (a.onFloor?1:0) || (b.h - a.h) || ((b.w*b.d) - (a.w*a.d)), (a,b) => (b.onFloor?1:0) - (a.onFloor?1:0) || ((b.w*b.d) - (a.w*a.d)) || (b.h - a.h),
+        (a,b) => (b.onFloor?1:0) - (a.onFloor?1:0) || ((b.w*b.h*b.d) - (a.w*a.h*a.d)), (a,b) => (b.onFloor?1:0) - (a.onFloor?1:0) || (Math.max(b.w,b.h,b.d) - Math.max(a.w,a.h,a.d)),
+        (a,b) => ((b.w*b.h*b.d) - (a.w*a.h*a.d)), (a,b) => (b.h - a.h)
+      ];
+      for (let sortFn of estrategias) {
+          let cont = crearContenedor(tipoKey); let cajasLocales = cajasTestGroup.map(c => ({...c})); cajasLocales.sort(sortFn); let success = true;
+          for(let caja of cajasLocales) {
+              let placed = false; let oris = obtenerRotaciones(caja);
+              if (cont.pesoActual + caja.weight <= cont.maxWeight) {
+                  let ptos = [{x:0, y:0, z:0}]; cont.cajas.forEach(c => { ptos.push({x: c.x + c.drawW, y: c.y, z: c.z}); ptos.push({x: c.x, y: c.y, z: c.z + c.drawD}); ptos.push({x: c.x, y: c.y + c.drawH, z: c.z}); });
+                  ptos.sort((a,b) => { if(Math.abs(a.y - b.y) > 0.1) return a.y - b.y; if(Math.abs(a.z - b.z) > 0.1) return a.z - b.z; return a.x - b.x; });
+                  for(let pt of ptos) {
+                     if(caja.onFloor && pt.y > 0.1) continue; 
+                     for(let ori of oris) {
+                         if(pt.x + ori.w > cont.w || pt.y + ori.h > cont.h || pt.z + ori.d > cont.d) continue;
+                         let boxCand = {x: pt.x, y: pt.y, z: pt.z, drawW: ori.w, drawH: ori.h, drawD: ori.d}; let colision = false; for(let existente of cont.cajas) { if(intersecta3D(boxCand, existente)) { colision = true; break; } }
+                         if(!colision) { caja.x = pt.x; caja.y = pt.y; caja.z = pt.z; caja.drawW = ori.w; caja.drawH = ori.h; caja.drawD = ori.d; cont.cajas.push(caja); cont.pesoActual += caja.weight; cont.volActual += (ori.w * ori.h * ori.d) / 1000000; if(pt.z + ori.d > cont.lenUsada) cont.lenUsada = pt.z + ori.d; placed = true; break; }
+                     } if(placed) break;
+                  }
+              } if(!placed) { success = false; break; } 
+          } if(success) return cont; 
+      } return null; 
+    }
+
+    function empaquetarConEstrategia(cajasList, defaultType) {
+      let contenedores = []; let cajasUnlocked = cajasList.map(c => ({...c})); contenedoresFisicos.forEach(cOld => { contenedores.push(crearContenedor(cOld.tipoKey)); });
+      let cajasParaAcomodar = [];
+      cajasUnlocked.forEach(caja => {
+          if (caja.locked) {
+              if (caja.contIdx < contenedores.length) { let c = contenedores[caja.contIdx]; c.cajas.push(caja); c.pesoActual += caja.weight; c.volActual += (caja.drawW * caja.drawH * caja.drawD) / 1000000; if(caja.z + caja.drawD > c.lenUsada) c.lenUsada = caja.z + caja.drawD; } else { caja.locked = false; cajasParaAcomodar.push(caja); }
+          } else { cajasParaAcomodar.push(caja); }
+      });
+      if (contenedores.length === 0 && cajasParaAcomodar.length > 0) contenedores.push(crearContenedor(defaultType));
+      for (let caja of cajasParaAcomodar) {
+        let placed = false; let oris = obtenerRotaciones(caja); let contIdx = 0;
+        while(!placed) {
+           if(contIdx >= contenedores.length) contenedores.push(crearContenedor(defaultType)); let cont = contenedores[contIdx];
+           let fitsAbs = false; for(let o of oris) { if(o.w <= cont.w && o.h <= cont.h && o.d <= cont.d) fitsAbs = true; } if(!fitsAbs) break;
+           if (cont.pesoActual + caja.weight <= cont.maxWeight) {
+               let ptos = [{x:0, y:0, z:0}]; cont.cajas.forEach(c => { ptos.push({x: c.x + c.drawW, y: c.y, z: c.z}); ptos.push({x: c.x, y: c.y, z: c.z + c.drawD}); ptos.push({x: c.x, y: c.y + c.drawH, z: c.z}); });
+               ptos.sort((a,b) => { if(Math.abs(a.y - b.y) > 0.1) return a.y - b.y; if(Math.abs(a.z - b.z) > 0.1) return a.z - b.z; return a.x - b.x; });
+               for(let pt of ptos) {
+                   if(caja.onFloor && pt.y > 0.1) continue; 
+                   for(let ori of oris) {
+                       if(pt.x + ori.w > cont.w || pt.y + ori.h > cont.h || pt.z + ori.d > cont.d) continue;
+                       let boxCand = {x: pt.x, y: pt.y, z: pt.z, drawW: ori.w, drawH: ori.h, drawD: ori.d}; let colision = false; for(let existente of cont.cajas) { if(intersecta3D(boxCand, existente)) { colision = true; break; } }
+                       if(!colision) { caja.x = pt.x; caja.y = pt.y; caja.z = pt.z; caja.drawW = ori.w; caja.drawH = ori.h; caja.drawD = ori.d; caja.contIdx = contIdx; cont.cajas.push(caja); cont.pesoActual += caja.weight; cont.volActual += (ori.w * ori.h * ori.d) / 1000000; if(pt.z + ori.d > cont.lenUsada) cont.lenUsada = pt.z + ori.d; placed = true; break; }
+                   } if(placed) break;
+               }
+           } if(!placed && cont.cajas.length === 0) break; contIdx++;
+        }
+      }
+      while(contenedores.length > 0 && contenedores[contenedores.length-1].cajas.length === 0) { contenedores.pop(); } return contenedores;
+    }
+
+    function optimizarCarga() {
+      sincronizarInstancias(); const selectDefault = document.getElementById('ribbon-cont-type'); if(selectDefault.options.length === 0) updateAllContDropdowns(); const defaultType = selectDefault.value || '40ft';
+      if (instanciasCajas.length === 0) { contenedoresFisicos = [crearContenedor(defaultType)]; actualizarUIContenedores(); return; }
+      let estrategias = [
+        (a,b) => (b.onFloor?1:0) - (a.onFloor?1:0) || (b.h - a.h) || ((b.w*b.d) - (a.w*a.d)), (a,b) => (b.onFloor?1:0) - (a.onFloor?1:0) || ((b.w*b.d) - (a.w*a.d)) || (b.h - a.h),
+        (a,b) => (b.onFloor?1:0) - (a.onFloor?1:0) || ((b.w*b.h*b.d) - (a.w*a.h*a.d)), (a,b) => (b.onFloor?1:0) - (a.onFloor?1:0) || (Math.max(b.w,b.h,b.d) - Math.max(a.w,a.h,a.d)),
+      ];
+      let mejorResultado = null;
+      for (let sortFn of estrategias) {
+          let copiaCajas = [...instanciasCajas]; copiaCajas.sort(sortFn); let res = empaquetarConEstrategia(copiaCajas, defaultType);
+          if (!mejorResultado) { mejorResultado = res; } else { if (res.length < mejorResultado.length) { mejorResultado = res; } else if (res.length === mejorResultado.length) { let lenA = res.reduce((acc, c) => acc + c.lenUsada, 0); let lenB = mejorResultado.reduce((acc, c) => acc + c.lenUsada, 0); if (lenA < lenB) mejorResultado = res; } }
+      }
+      contenedoresFisicos = mejorResultado || [];
+      if (contenedoresFisicos.length > 0) {
+          let ultIdx = contenedoresFisicos.length - 1; let ultCont = contenedoresFisicos[ultIdx];
+          if (ultCont.tipoKey === '40ft' || ultCont.tipoKey === '40hc') {
+              let cajasRemanentes = ultCont.cajas.map(c => ({...c, locked: false})); let nuevoCont20 = testFitInOneContainer(cajasRemanentes, '20ft');
+              if (nuevoCont20 !== null) { nuevoCont20.cajas.forEach(c => c.contIdx = ultIdx); contenedoresFisicos[ultIdx] = nuevoCont20; }
+          }
+      } actualizarUIContenedores();
+    }
+
+    function actualizarUIContenedores() {
+      const select = document.getElementById('view-cont-select'); select.innerHTML = '<option value="">-- View All (Global Info) --</option>'; 
+      if(contenedoresFisicos.length === 0) { document.getElementById('change-type-div').style.display = 'none'; } else { contenedoresFisicos.forEach((c, idx) => { select.innerHTML += `<option value="${idx}">Container #${idx+1} (${c.nombre})</option>`; }); document.getElementById('change-type-div').style.display = 'flex'; }
+      actualizarPanelDerecho(); construirEscena3D(); 
+    }
+
+    function actualizarPanelDerecho() {
+      const idx = document.getElementById('view-cont-select').value; let totalVolMax = 0, totalVolAct = 0, totalWgtMax = 0, totalWgtAct = 0, totalLenMax = 0, totalLenAct = 0;
+      if(idx === "") {
+          document.getElementById('cont-name').innerText = "Container Info (Global)"; document.getElementById('change-type-div').style.display = 'none';
+          if(contenedoresFisicos.length === 0) { let empty = dbContenedores[document.getElementById('ribbon-cont-type').value]; totalVolMax = empty ? empty.maxVol : 0; totalWgtMax = empty ? empty.maxWeight : 0; totalLenMax = empty ? empty.d : 0; } else { contenedoresFisicos.forEach(c => { totalVolMax += c.maxVol; totalVolAct += c.volActual; totalWgtMax += c.maxWeight; totalWgtAct += c.pesoActual; totalLenMax += c.d; totalLenAct += c.lenUsada; }); }
+      } else {
+          document.getElementById('change-type-div').style.display = 'flex'; const c = contenedoresFisicos[idx]; document.getElementById('individual-cont-type').value = c.tipoKey; document.getElementById('cont-name').innerText = `Container #${parseInt(idx)+1} (${c.nombre})`;
+          totalVolMax = c.maxVol; totalVolAct = c.volActual; totalWgtMax = c.maxWeight; totalWgtAct = c.pesoActual; totalLenMax = c.d; totalLenAct = c.lenUsada;
+      }
+      let pctVol = totalVolMax > 0 ? ((totalVolAct / totalVolMax) * 100).toFixed(1) : "0.0"; document.getElementById('vol-text').innerHTML = `${totalVolAct.toFixed(3)} m³<br>${totalVolMax.toFixed(3)} m³`; document.getElementById('bar-vol').style.width = `${pctVol}%`; document.getElementById('pct-vol').innerText = `${pctVol}%`;
+      let pctWgt = totalWgtMax > 0 ? ((totalWgtAct / totalWgtMax) * 100).toFixed(1) : "0.0"; document.getElementById('wgt-text').innerHTML = `${totalWgtAct} kg<br>${totalWgtMax} kg`; document.getElementById('bar-wgt').style.width = `${pctWgt}%`; document.getElementById('pct-wgt').innerText = `${pctWgt}%`;
+      let pctLen = totalLenMax > 0 ? ((totalLenAct / totalLenMax) * 100).toFixed(1) : "0.0"; let remLen = (totalLenMax - totalLenAct).toFixed(1); document.getElementById('len-text').innerHTML = `${totalLenAct.toFixed(1)} cm<br>${totalLenMax.toFixed(1)} cm<br>${remLen} cm`; document.getElementById('bar-len').style.width = `${pctLen}%`; document.getElementById('pct-len').innerText = `${pctLen}%`;
+      if(is3DInitialized) actualizarRenderCajas(); 
+    }
+
+    function cambiarContenedorIndividual() { const idx = parseInt(document.getElementById('view-cont-select').value); if(!isNaN(idx)) { contenedoresFisicos[idx].tipoKey = document.getElementById('individual-cont-type').value; optimizarCarga(); } }
+
+    function bloquearSeleccion(lockState) { let changed = false; if (selectedGroupId) { instanciasCajas.forEach(inst => { if (String(inst.groupId) === String(selectedGroupId)) { inst.locked = lockState; changed = true; } }); } else if (selectedMeshUUID) { let inst = instanciasCajas.find(i => i.uuid === selectedMeshUUID); if (inst) { inst.locked = lockState; changed = true; } } if (changed) actualizarRenderCajas(); }
+
+    function init3D() {
+      if(is3DInitialized) return; initGlobalMats();
+      const containerDiv = document.getElementById('canvas-container'); scene = new THREE.Scene(); camera = new THREE.PerspectiveCamera(45, containerDiv.clientWidth / containerDiv.clientHeight, 1, 30000);
+      renderer = new THREE.WebGLRenderer({antialias: true, alpha: true}); renderer.setSize(containerDiv.clientWidth, containerDiv.clientHeight); containerDiv.appendChild(renderer.domElement);
+      controls = new THREE.OrbitControls(camera, renderer.domElement); controls.enableDamping = true; scene.add(new THREE.AmbientLight(0xffffff, 0.8)); const dirLight = new THREE.DirectionalLight(0xffffff, 0.5); dirLight.position.set(5000, 10000, 5000); scene.add(dirLight);
+      mainGroup = new THREE.Group(); scene.add(mainGroup);
+      let pointerDownPos = {x: 0, y: 0}; containerDiv.addEventListener('pointerdown', e => { pointerDownPos.x = e.clientX; pointerDownPos.y = e.clientY; });
+      containerDiv.addEventListener('pointerup', e => { if(Math.abs(e.clientX - pointerDownPos.x) > 5 || Math.abs(e.clientY - pointerDownPos.y) > 5) return; onMouseClick(e); });
+      function animate() { requestAnimationFrame(animate); controls.update(); renderer.render(scene, camera); } animate(); is3DInitialized = true;
+    }
+
+    function construirEscena3D() {
+      init3D(); while(mainGroup.children.length > 0) { let obj = mainGroup.children[0]; if(obj.geometry) obj.geometry.dispose(); mainGroup.remove(obj); } objectsInteractables = [];
+      const gapX = 150; let totalWidth = 0; let maxH = 250, maxD = 1200; contenedoresFisicos.forEach(c => { totalWidth += c.w + gapX; if(c.h > maxH) maxH = c.h; if(c.d > maxD) maxD = c.d; });
+      let centerX = -(totalWidth - gapX) / 2; camera.position.set(centerX + (totalWidth*0.7), maxH * 2.5, maxD * 1.5); controls.target.set(centerX, maxH/2, maxD/2);
+      let currentOffsetX = 0;
+      contenedoresFisicos.forEach((contenedor, idx) => {
+         const contGeo = new THREE.BoxGeometry(contenedor.w, contenedor.h, contenedor.d); contGeo.translate((contenedor.w/2) + currentOffsetX, contenedor.h/2, contenedor.d/2);
+         const boxMesh = new THREE.Mesh(contGeo, globalMats.contFill); boxMesh.userData = { isContainer: true, contIdx: idx }; mainGroup.add(boxMesh);
+         const edgeMesh = new THREE.LineSegments(new THREE.EdgesGeometry(contGeo), globalMats.contEdge); edgeMesh.userData = { isContainerEdge: true, contIdx: idx }; mainGroup.add(edgeMesh);
+         if(contenedor.cajas) {
+           contenedor.cajas.forEach(caja => {
+             let geo;
+             if (caja.shape === 'barrel') { let isUpright = (caja.drawH === caja.h); let isXAligned = (caja.drawW === caja.h); if (isUpright) { let r = Math.min(caja.drawW, caja.drawD) / 2 - 0.5; geo = new THREE.CylinderGeometry(r, r, caja.drawH - 1, 32); } else if (isXAligned) { let r = Math.min(caja.drawH, caja.drawD) / 2 - 0.5; geo = new THREE.CylinderGeometry(r, r, caja.drawW - 1, 32); geo.rotateZ(Math.PI / 2); } else { let r = Math.min(caja.drawW, caja.drawH) / 2 - 0.5; geo = new THREE.CylinderGeometry(r, r, caja.drawD - 1, 32); geo.rotateX(Math.PI / 2); } geo.translate(caja.x + caja.drawW/2 + currentOffsetX, caja.y + caja.drawH/2, caja.z + caja.drawD/2); } 
+             else if (caja.shape === 'pallet') {
+                 let palletH = 15; let loadH = caja.drawH - palletH; if (loadH < 1) loadH = 1; let holesOnDrawW = !(caja.drawW === caja.d && caja.drawD === caja.w && caja.w !== caja.d);
+                 let deckGeo = new THREE.BoxGeometry(caja.drawW - 1, 3, caja.drawD - 1); deckGeo.translate(caja.x + caja.drawW/2 + currentOffsetX, caja.y + 13.5, caja.z + caja.drawD/2); mainGroup.add(new THREE.Mesh(deckGeo, getSolidMaterial('#8B5A2B'))); mainGroup.add(new THREE.LineSegments(new THREE.EdgesGeometry(deckGeo), globalMats.boxEdge));
+                 let sw = holesOnDrawW ? Math.min(12, caja.drawW * 0.15) : (caja.drawW - 1); let sd = holesOnDrawW ? (caja.drawD - 1) : Math.min(12, caja.drawD * 0.15);
+                 for(let i=0; i<3; i++) { let sGeo = new THREE.BoxGeometry(sw, 12, sd); let px = caja.drawW / 2; let pz = caja.drawD / 2; if (holesOnDrawW) { if(i===0) px = 0.5 + sw/2; if(i===2) px = caja.drawW - 0.5 - sw/2; } else { if(i===0) pz = 0.5 + sd/2; if(i===2) pz = caja.drawD - 0.5 - sd/2; } sGeo.translate(caja.x + px + currentOffsetX, caja.y + 6, caja.z + pz); mainGroup.add(new THREE.Mesh(sGeo, getSolidMaterial('#8B5A2B'))); mainGroup.add(new THREE.LineSegments(new THREE.EdgesGeometry(sGeo), globalMats.boxEdge)); }
+                 geo = new THREE.BoxGeometry(caja.drawW - 1, loadH - 0.5, caja.drawD - 1); geo.translate(caja.x + caja.drawW/2 + currentOffsetX, caja.y + palletH + loadH/2, caja.z + caja.drawD/2);
+             } else { geo = new THREE.BoxGeometry(caja.drawW - 1, caja.drawH - 1, caja.drawD - 1); geo.translate(caja.x + caja.drawW/2 + currentOffsetX, caja.y + caja.drawH/2, caja.z + caja.drawD/2); }
+             const mesh = new THREE.Mesh(geo, getSolidMaterial(caja.color)); mesh.userData = { uuid: caja.uuid, groupId: caja.groupId, color: caja.color, locked: caja.locked }; mainGroup.add(mesh); objectsInteractables.push(mesh); const edges = new THREE.LineSegments(new THREE.EdgesGeometry(geo), globalMats.boxEdge); edges.userData = { isEdge: true, parentUUID: caja.uuid }; mainGroup.add(edges);
+           });
+         } currentOffsetX -= (contenedor.w + gapX); 
+      }); actualizarRenderCajas();
+    }
+
+    function actualizarRenderCajas() {
+        const selectedIdx = document.getElementById('view-cont-select').value;
+        mainGroup.children.forEach(obj => {
+            if(obj.userData.uuid) { let isSelected = (obj.userData.uuid === selectedMeshUUID || String(obj.userData.groupId) === String(selectedGroupId)); let inst = instanciasCajas.find(i => i.uuid === obj.userData.uuid); let isLocked = inst ? inst.locked : false; obj.material = (isLocked || isSelected) ? getStripedMaterial(obj.userData.color) : getSolidMaterial(obj.userData.color); }
+            if(obj.userData.isEdge) { let isSelected = (obj.userData.parentUUID === selectedMeshUUID || String(instanciasCajas.find(i => i.uuid === obj.userData.parentUUID)?.groupId) === String(selectedGroupId)); obj.material = isSelected ? globalMats.boxEdgeSel : globalMats.boxEdge; }
+            if(obj.userData.isContainer) { obj.material = (obj.userData.contIdx == selectedIdx && selectedIdx !== "") ? globalMats.contFillSel : globalMats.contFill; }
+            if(obj.userData.isContainerEdge) { obj.material = (obj.userData.contIdx == selectedIdx && selectedIdx !== "") ? globalMats.contEdgeSel : globalMats.contEdge; }
+        });
+    }
+
+    function onMouseClick(event) {
+        const containerDiv = document.getElementById('canvas-container'); const rect = containerDiv.getBoundingClientRect(); mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1; mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1; raycaster.setFromCamera(mouse, camera); const intersects = raycaster.intersectObjects(objectsInteractables);
+        if (intersects.length > 0) { let clickedUUID = intersects[0].object.userData.uuid; selectedMeshUUID = (selectedMeshUUID === clickedUUID) ? null : clickedUUID; selectedGroupId = null; actualizarTabla(); } else { selectedMeshUUID = null; selectedGroupId = null; actualizarTabla(); } actualizarRenderCajas(); 
+    }
+
+    // --- REGISTRO PWA Y FILE HANDLING ---
+    if ('serviceWorker' in navigator) { navigator.serviceWorker.register('sw.js').catch(console.error); }
+    if ('launchQueue' in window) {
+        window.launchQueue.setConsumer(async (launchParams) => {
+            if (launchParams.files.length > 0) {
+                const fileHandle = launchParams.files[0];
+                const file = await fileHandle.getFile();
+                cargarArchivo({ target: { files: [file] } });
+            }
+        });
+    }
+
+    window.onload = function() { initColorMenu(); updateAllContDropdowns(); limpiarTodo(); };
+  </script>
+</body>
+</html>
