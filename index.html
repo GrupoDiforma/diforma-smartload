@@ -602,7 +602,7 @@
            let fitsAbs = false; for(let o of oris) { if(o.w <= cont.w && o.h <= cont.h && o.d <= cont.d) fitsAbs = true; } if(!fitsAbs) break;
            if (cont.pesoActual + caja.weight <= cont.maxWeight) {
                let ptos = [{x:0, y:0, z:0}]; cont.cajas.forEach(c => { ptos.push({x: c.x + c.drawW, y: c.y, z: c.z}); ptos.push({x: c.x, y: c.y, z: c.z + c.drawD}); ptos.push({x: c.x, y: c.y + c.drawH, z: c.z}); });
-               ptos.sort((a,b) => { if(Math.abs(a.y - b.y) > 0.1) return a.y - b.y; if(Math.abs(a.z - b.z) > 0.1) return a.z - b.z; return a.x - b.x; });
+               ptos.sort((a,b) => { if(Math.abs(a.z - b.z) > 0.1) return a.z - b.z; if(Math.abs(a.y - b.y) > 0.1) return a.y - b.y; return a.x - b.x; });
                for(let pt of ptos) {
                    if(caja.onFloor && pt.y > 0.1) continue; 
                    for(let ori of oris) {
