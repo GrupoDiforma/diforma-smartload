@@ -4,12 +4,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   
+  <title>SmartLoad</title>
+  
   <!-- Configuración PWA -->
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#00156e">
   <link rel="apple-touch-icon" href="https://diformainstore.com/wp-content/uploads/2021/04/cropped-Diforma-Icon-192x192.png">
   
-  <link rel="icon" type="image/svg+xml" href="./favicon.png">
+  <link rel="icon" type="image/png" href="./favicon.png">
   
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -98,16 +100,28 @@
     
     #custom-cont-dims { display: none; margin-left: 10px; align-items: center; gap: 5px; }
     #custom-cont-dims input { width: 45px; }
+
+    #toast-msg { display: none; position: fixed; bottom: 20px; right: 20px; background: #2e7d32; color: white; padding: 12px 24px; border-radius: 4px; box-shadow: 0 4px 10px rgba(0,0,0,0.3); font-weight: bold; z-index: 10000; font-family: 'Inter', sans-serif; font-size: 12px; transition: opacity 0.3s; }
   </style>
 </head>
 <body>
 
-  <input type="file" id="file-input" style="display:none;" accept=".json, .load" onchange="cargarArchivo(event)">
+  <!-- PANTALLA DE CARGA -->
+  <div id="loading-overlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(255,255,255,0.85); z-index:9999; justify-content:center; align-items:center; flex-direction:column;">
+      <div style="width: 60px; height: 60px; border: 6px solid #e6f0fa; border-top-color: #cc0000; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+      <div style="font-size:20px; color:#00156e; font-weight:900; margin-top:15px; font-family: 'Inter', sans-serif; font-style:italic;">Optimizando Carga...</div>
+      <div style="font-size:12px; color:#666; margin-top:5px; font-family: 'Inter', sans-serif; max-width: 300px; text-align: center;">Sincronización Bidireccional (V6.7)</div>
+      <style>@keyframes spin { to { transform: rotate(360deg); } }</style>
+  </div>
+
+  <div id="toast-msg">✅ Archivo guardado correctamente.</div>
+
+  <input type="file" id="file-input" style="display:none;" accept=".json, .load" onchange="cargarArchivoInput(event)">
 
   <div id="ribbon">
     <div class="ribbon-group">
       <div class="btn" onclick="limpiarTodo()"><div class="btn-icon">📄</div>New</div>
-      <div class="btn" onclick="document.getElementById('file-input').click()"><div class="btn-icon">📂</div>Open</div>
+      <div class="btn" onclick="abrirArchivo()"><div class="btn-icon">📂</div>Open</div>
       <div style="display:flex; flex-direction:column; gap:2px; margin-left:5px;">
         <label style="font-size:10px; color:#666;">File Name:</label>
         <div style="display:flex; align-items:center; gap:5px;">
@@ -148,7 +162,7 @@
     
     <div id="branding-area">
       <span class="app-title">Diforma <span>SmartLoad</span></span>
-      <span class="app-version">Version 5.1 (PWA)</span>
+      <span class="app-version" id="app-version-text">V6.7</span>
     </div>
   </div>
 
@@ -261,6 +275,25 @@
   </div>
 
   <script>
+    // ==========================================
+    // CONFIGURACIÓN DE VERSIÓN 
+    // ==========================================
+    const APP_VERSION = "V6.7";
+    // ==========================================
+
+    let currentFileHandle = null; 
+
+    function mostrarToast(mensaje) {
+        let toast = document.getElementById('toast-msg');
+        toast.innerText = mensaje;
+        toast.style.display = 'block';
+        toast.style.opacity = '1';
+        setTimeout(() => { 
+            toast.style.opacity = '0';
+            setTimeout(() => { toast.style.display = 'none'; }, 300);
+        }, 3500);
+    }
+
     dragElement(document.getElementById("modal-box")); dragElement(document.getElementById("modal-containers"));
     function dragElement(elmnt) {
       let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0; document.getElementById(elmnt.id + "-header").onmousedown = dragMouseDown;
@@ -389,17 +422,50 @@
       if(listaEmpaque.length === 0) { alert("No hay datos para guardar."); return; }
       let fileName = document.getElementById('save-filename').value.trim(); if(!fileName) fileName = "MiCargaLoad"; if(!fileName.toLowerCase().endsWith(".load")) fileName += ".load";
       const xmlData = generateLoadXML();
-      if (forceSaveAs && window.showSaveFilePicker) {
+      
+      if (window.showSaveFilePicker) {
           try {
-              const handle = await window.showSaveFilePicker({ suggestedName: fileName, types: [{ description: 'Load! File', accept: {'text/xml': ['.load']} }] });
-              const writable = await handle.createWritable(); await writable.write(xmlData); await writable.close(); return; 
+              let handle = currentFileHandle;
+              if (forceSaveAs || !handle) {
+                  handle = await window.showSaveFilePicker({ suggestedName: fileName, types: [{ description: 'Load! File', accept: {'text/xml': ['.load']} }] });
+                  currentFileHandle = handle; 
+              }
+              const writable = await handle.createWritable(); 
+              await writable.write(xmlData); 
+              await writable.close(); 
+              mostrarToast("✅ Archivo guardado y sobrescrito correctamente.");
+              return; 
           } catch (err) { if(err.name === 'AbortError') return; }
       }
+      
       const blob = new Blob([xmlData], {type: "text/xml"}); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = fileName; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+      mostrarToast("✅ Archivo descargado en tu carpeta de descargas.");
     }
 
-    function cargarArchivo(event) {
-      const file = event.target.files[0]; if (!file) return; const reader = new FileReader();
+    async function abrirArchivo() {
+        if (window.showOpenFilePicker) {
+            try {
+                const [fileHandle] = await window.showOpenFilePicker({
+                    types: [{ description: 'Archivos Load!', accept: {'text/xml': ['.load'], 'application/json': ['.json']} }]
+                });
+                currentFileHandle = fileHandle; 
+                const file = await fileHandle.getFile();
+                cargarContenidoArchivo(file);
+            } catch(e) { console.log(e); }
+        } else {
+            document.getElementById('file-input').click();
+        }
+    }
+
+    function cargarArchivoInput(event) {
+        const file = event.target.files[0]; 
+        if (!file) return; 
+        currentFileHandle = null; 
+        cargarContenidoArchivo(file);
+    }
+
+    function cargarContenidoArchivo(file) {
+      const reader = new FileReader();
       reader.onload = function(e) {
         try {
           let fileContent = e.target.result;
@@ -490,8 +556,8 @@
     }
 
     function limpiarTodo() {
-        listaEmpaque = []; instanciasCajas = []; contenedoresFisicos = []; selectedGroupId = null; selectedMeshUUID = null;
-        document.getElementById('file-input').value = ''; document.getElementById('save-filename').value = 'MiCargaLoad';
+        listaEmpaque = []; instanciasCajas = []; contenedoresFisicos = []; selectedGroupId = null; selectedMeshUUID = null; currentFileHandle = null;
+        document.getElementById('save-filename').value = 'MiCargaLoad';
         actualizarTabla(); const defaultType = document.getElementById('ribbon-cont-type').value || '40ft'; contenedoresFisicos = [crearContenedor(defaultType)]; actualizarUIContenedores();
     }
     
@@ -533,8 +599,6 @@
       }); tbody.innerHTML = html;
     }
 
-    function intersecta3D(b1, b2) { const eps = 0.2; return ( b1.x + eps < b2.x + b2.drawW && b1.x + b1.drawW - eps > b2.x && b1.y + eps < b2.y + b2.drawH && b1.y + b1.drawH - eps > b2.y && b1.z + eps < b2.z + b2.drawD && b1.z + b1.drawD - eps > b2.z ); }
-
     function obtenerRotaciones(caja) {
       let rots = []; let w = caja.w, h = caja.h, d = caja.d; rots.push({w: w, h: h, d: d}); 
       if (!caja.noTurn) rots.push({w: d, h: h, d: w}); 
@@ -558,85 +622,247 @@
 
     function obtenerContenedorActivo() { let key = document.getElementById('ribbon-cont-type').value; return dbContenedores[key] || dbContenedores['40ft']; }
     function crearContenedor(tipoKey) { let db = dbContenedores[tipoKey] || obtenerContenedorActivo(); let tk = dbContenedores[tipoKey] ? tipoKey : document.getElementById('ribbon-cont-type').value; return { tipoKey: tk, nombre: db.nombre, w: db.w, h: db.h, d: db.d, maxWeight: db.maxWeight, maxVol: db.maxVol, cajas: [], pesoActual: 0, volActual: 0, lenUsada: 0 }; }
-    function cambiarTipoContenedorGlobal() { optimizarCarga(); }
 
-    function testFitInOneContainer(cajasTestGroup, tipoKey) {
-      let estrategias = [
-        (a,b) => (b.onFloor?1:0) - (a.onFloor?1:0) || (b.h - a.h) || ((b.w*b.d) - (a.w*a.d)), (a,b) => (b.onFloor?1:0) - (a.onFloor?1:0) || ((b.w*b.d) - (a.w*a.d)) || (b.h - a.h),
-        (a,b) => (b.onFloor?1:0) - (a.onFloor?1:0) || ((b.w*b.h*b.d) - (a.w*a.h*a.d)), (a,b) => (b.onFloor?1:0) - (a.onFloor?1:0) || (Math.max(b.w,b.h,b.d) - Math.max(a.w,a.h,a.d)),
-        (a,b) => ((b.w*b.h*b.d) - (a.w*a.h*a.d)), (a,b) => (b.h - a.h)
-      ];
-      for (let sortFn of estrategias) {
-          let cont = crearContenedor(tipoKey); let cajasLocales = cajasTestGroup.map(c => ({...c})); cajasLocales.sort(sortFn); let success = true;
-          for(let caja of cajasLocales) {
-              let placed = false; let oris = obtenerRotaciones(caja);
-              if (cont.pesoActual + caja.weight <= cont.maxWeight) {
-                  let ptos = [{x:0, y:0, z:0}]; cont.cajas.forEach(c => { ptos.push({x: c.x + c.drawW, y: c.y, z: c.z}); ptos.push({x: c.x, y: c.y, z: c.z + c.drawD}); ptos.push({x: c.x, y: c.y + c.drawH, z: c.z}); });
-                  ptos.sort((a,b) => { if(Math.abs(a.y - b.y) > 0.1) return a.y - b.y; if(Math.abs(a.z - b.z) > 0.1) return a.z - b.z; return a.x - b.x; });
-                  for(let pt of ptos) {
-                     if(caja.onFloor && pt.y > 0.1) continue; 
-                     for(let ori of oris) {
-                         if(pt.x + ori.w > cont.w || pt.y + ori.h > cont.h || pt.z + ori.d > cont.d) continue;
-                         let boxCand = {x: pt.x, y: pt.y, z: pt.z, drawW: ori.w, drawH: ori.h, drawD: ori.d}; let colision = false; for(let existente of cont.cajas) { if(intersecta3D(boxCand, existente)) { colision = true; break; } }
-                         if(!colision) { caja.x = pt.x; caja.y = pt.y; caja.z = pt.z; caja.drawW = ori.w; caja.drawH = ori.h; caja.drawD = ori.d; cont.cajas.push(caja); cont.pesoActual += caja.weight; cont.volActual += (ori.w * ori.h * ori.d) / 1000000; if(pt.z + ori.d > cont.lenUsada) cont.lenUsada = pt.z + ori.d; placed = true; break; }
-                     } if(placed) break;
-                  }
-              } if(!placed) { success = false; break; } 
-          } if(success) return cont; 
-      } return null; 
+    class BSPNode {
+        constructor(x, y, z, w, h, d) {
+            this.x = x; this.y = y; this.z = z;
+            this.w = w; this.h = h; this.d = d;
+            this.used = false;
+            this.right = null;
+            this.up = null;
+            this.front = null;
+        }
+
+        getFreeNodes(nodes = []) {
+            if (this.used) {
+                if (this.right) this.right.getFreeNodes(nodes);
+                if (this.up) this.up.getFreeNodes(nodes);
+                if (this.front) this.front.getFreeNodes(nodes);
+            } else {
+                if (this.w > 0.1 && this.h > 0.1 && this.d > 0.1) {
+                    nodes.push(this);
+                }
+            }
+            return nodes;
+        }
+
+        split(bw, bh, bd) {
+            this.used = true;
+            this.right = new BSPNode(this.x + bw, this.y, this.z, this.w - bw, bh, bd);
+            this.up = new BSPNode(this.x, this.y + bh, this.z, this.w, this.h - bh, bd);
+            this.front = new BSPNode(this.x, this.y, this.z + bd, this.w, this.h, this.d - bd);
+        }
     }
 
-    function empaquetarConEstrategia(cajasList, defaultType) {
-      let contenedores = []; let cajasUnlocked = cajasList.map(c => ({...c})); contenedoresFisicos.forEach(cOld => { contenedores.push(crearContenedor(cOld.tipoKey)); });
-      let cajasParaAcomodar = [];
-      cajasUnlocked.forEach(caja => {
-          if (caja.locked) {
-              if (caja.contIdx < contenedores.length) { let c = contenedores[caja.contIdx]; c.cajas.push(caja); c.pesoActual += caja.weight; c.volActual += (caja.drawW * caja.drawH * caja.drawD) / 1000000; if(caja.z + caja.drawD > c.lenUsada) c.lenUsada = caja.z + caja.drawD; } else { caja.locked = false; cajasParaAcomodar.push(caja); }
-          } else { cajasParaAcomodar.push(caja); }
-      });
-      if (contenedores.length === 0 && cajasParaAcomodar.length > 0) contenedores.push(crearContenedor(defaultType));
-      for (let caja of cajasParaAcomodar) {
-        let placed = false; let oris = obtenerRotaciones(caja); let contIdx = 0;
-        while(!placed) {
-           if(contIdx >= contenedores.length) contenedores.push(crearContenedor(defaultType)); let cont = contenedores[contIdx];
-           let fitsAbs = false; for(let o of oris) { if(o.w <= cont.w && o.h <= cont.h && o.d <= cont.d) fitsAbs = true; } if(!fitsAbs) break;
-           if (cont.pesoActual + caja.weight <= cont.maxWeight) {
-               let ptos = [{x:0, y:0, z:0}]; cont.cajas.forEach(c => { ptos.push({x: c.x + c.drawW, y: c.y, z: c.z}); ptos.push({x: c.x, y: c.y, z: c.z + c.drawD}); ptos.push({x: c.x, y: c.y + c.drawH, z: c.z}); });
-               ptos.sort((a,b) => { if(Math.abs(a.z - b.z) > 0.1) return a.z - b.z; if(Math.abs(a.y - b.y) > 0.1) return a.y - b.y; return a.x - b.x; });
-               for(let pt of ptos) {
-                   if(caja.onFloor && pt.y > 0.1) continue; 
-                   for(let ori of oris) {
-                       if(pt.x + ori.w > cont.w || pt.y + ori.h > cont.h || pt.z + ori.d > cont.d) continue;
-                       let boxCand = {x: pt.x, y: pt.y, z: pt.z, drawW: ori.w, drawH: ori.h, drawD: ori.d}; let colision = false; for(let existente of cont.cajas) { if(intersecta3D(boxCand, existente)) { colision = true; break; } }
-                       if(!colision) { caja.x = pt.x; caja.y = pt.y; caja.z = pt.z; caja.drawW = ori.w; caja.drawH = ori.h; caja.drawD = ori.d; caja.contIdx = contIdx; cont.cajas.push(caja); cont.pesoActual += caja.weight; cont.volActual += (ori.w * ori.h * ori.d) / 1000000; if(pt.z + ori.d > cont.lenUsada) cont.lenUsada = pt.z + ori.d; placed = true; break; }
-                   } if(placed) break;
-               }
-           } if(!placed && cont.cajas.length === 0) break; contIdx++;
+    function empaquetarConGuillotinaBloques(cajasDisponibles, cont) {
+        let groupMap = {};
+        for (let c of cajasDisponibles) {
+            let sig = String(c.groupId);
+            if (!groupMap[sig]) groupMap[sig] = { sample: c, qty: 0, items: [] };
+            groupMap[sig].qty++;
+            groupMap[sig].items.push(c);
         }
-      }
-      while(contenedores.length > 0 && contenedores[contenedores.length-1].cajas.length === 0) { contenedores.pop(); } return contenedores;
+        let grupos = Object.values(groupMap);
+
+        grupos.sort((a,b) => {
+            let vA = a.sample.w * a.sample.h * a.sample.d;
+            let vB = b.sample.w * b.sample.h * b.sample.d;
+            return vB - vA;
+        });
+
+        let bsp = new BSPNode(0, 0, 0, cont.w, cont.h, cont.d);
+        let placedInCont = true;
+
+        while (placedInCont && grupos.some(g => g.qty > 0)) {
+            placedInCont = false;
+            let freeNodes = bsp.getFreeNodes();
+
+            freeNodes.sort((a, b) => {
+                if (Math.abs(a.z - b.z) > 0.1) return a.z - b.z;
+                if (Math.abs(a.y - b.y) > 0.1) return a.y - b.y;
+                return a.x - b.x;
+            });
+
+            let bestPlacement = null;
+
+            for (let gIdx = 0; gIdx < grupos.length; gIdx++) {
+                let g = grupos[gIdx];
+                if (g.qty <= 0) continue;
+                let caja = g.sample;
+
+                for (let i = 0; i < freeNodes.length; i++) {
+                    let node = freeNodes[i];
+                    if (caja.onFloor && node.y > 0.1) continue;
+
+                    let oris = obtenerRotaciones(caja);
+                    for (let ori of oris) {
+                        if (ori.w > node.w + 0.01 || ori.h > node.h + 0.01 || ori.d > node.d + 0.01) continue;
+
+                        let max_nx = Math.floor((node.w + 0.01) / ori.w);
+                        let max_ny = Math.floor((node.h + 0.01) / ori.h);
+                        let max_nz = Math.floor((node.d + 0.01) / ori.d);
+
+                        let available_qty = g.qty;
+                        if (caja.weight > 0) {
+                            let max_weight_qty = Math.floor((cont.maxWeight - cont.pesoActual) / caja.weight);
+                            available_qty = Math.min(g.qty, max_weight_qty);
+                        }
+                        if (available_qty <= 0) continue;
+
+                        let b_nx = 0, b_ny = 0, b_nz = 0, maxCount = 0;
+                        for (let x = 1; x <= max_nx; x++) {
+                            for (let y = 1; y <= max_ny; y++) {
+                                for (let z = 1; z <= max_nz; z++) {
+                                    let count = x * y * z;
+                                    if (count <= available_qty) {
+                                        if (count > maxCount) {
+                                            maxCount = count; b_nx = x; b_ny = y; b_nz = z;
+                                        } else if (count === maxCount) {
+                                            if (z > b_nz || (z === b_nz && x > b_nx)) {
+                                                b_nx = x; b_ny = y; b_nz = z;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        if (maxCount > 0) {
+                            let score = maxCount * ori.w * ori.h * ori.d;
+                            if (!bestPlacement || score > bestPlacement.score) {
+                                bestPlacement = {
+                                    node: node,
+                                    group: g,
+                                    ori: ori,
+                                    nx: b_nx, ny: b_ny, nz: b_nz,
+                                    count: maxCount,
+                                    score: score
+                                };
+                            }
+                        }
+                    }
+                }
+                
+                if (bestPlacement) break; 
+            }
+
+            if (bestPlacement) {
+                let { node, group, ori, nx, ny, nz, count } = bestPlacement;
+
+                for (let iz = 0; iz < nz; iz++) {
+                    for (let iy = 0; iy < ny; iy++) {
+                        for (let ix = 0; ix < nx; ix++) {
+                            let inst = group.items.pop();
+                            inst.x = node.x + ix * ori.w;
+                            inst.y = node.y + iy * ori.h;
+                            inst.z = node.z + iz * ori.d;
+                            inst.drawW = ori.w;
+                            inst.drawH = ori.h;
+                            inst.drawD = ori.d;
+                            cont.cajas.push(inst);
+                            cont.pesoActual += inst.weight;
+                        }
+                    }
+                }
+                group.qty -= count;
+                placedInCont = true;
+                node.split(nx * ori.w, ny * ori.h, nz * ori.d);
+            }
+        }
+
+        cont.volActual = cont.cajas.reduce((acc, c) => acc + (c.drawW * c.drawH * c.drawD)/1000000, 0);
+        cont.lenUsada = cont.cajas.reduce((maxZ, c) => Math.max(maxZ, c.z + c.drawD), 0);
+
+        let unpacked = [];
+        for (let g of grupos) {
+            if (g.items.length > 0) unpacked.push(...g.items);
+        }
+
+        return { cont, unpacked };
+    }
+
+    function cambiarContenedorIndividual() { 
+        const idx = parseInt(document.getElementById('view-cont-select').value); 
+        if(!isNaN(idx)) { 
+            contenedoresFisicos[idx].tipoKey = document.getElementById('individual-cont-type').value; 
+            optimizarCarga(); 
+        } 
     }
 
     function optimizarCarga() {
-      sincronizarInstancias(); const selectDefault = document.getElementById('ribbon-cont-type'); if(selectDefault.options.length === 0) updateAllContDropdowns(); const defaultType = selectDefault.value || '40ft';
-      if (instanciasCajas.length === 0) { contenedoresFisicos = [crearContenedor(defaultType)]; actualizarUIContenedores(); return; }
-      let estrategias = [
-        (a,b) => (b.onFloor?1:0) - (a.onFloor?1:0) || (b.h - a.h) || ((b.w*b.d) - (a.w*a.d)), (a,b) => (b.onFloor?1:0) - (a.onFloor?1:0) || ((b.w*b.d) - (a.w*a.d)) || (b.h - a.h),
-        (a,b) => (b.onFloor?1:0) - (a.onFloor?1:0) || ((b.w*b.h*b.d) - (a.w*a.h*a.d)), (a,b) => (b.onFloor?1:0) - (a.onFloor?1:0) || (Math.max(b.w,b.h,b.d) - Math.max(a.w,a.h,a.d)),
-      ];
-      let mejorResultado = null;
-      for (let sortFn of estrategias) {
-          let copiaCajas = [...instanciasCajas]; copiaCajas.sort(sortFn); let res = empaquetarConEstrategia(copiaCajas, defaultType);
-          if (!mejorResultado) { mejorResultado = res; } else { if (res.length < mejorResultado.length) { mejorResultado = res; } else if (res.length === mejorResultado.length) { let lenA = res.reduce((acc, c) => acc + c.lenUsada, 0); let lenB = mejorResultado.reduce((acc, c) => acc + c.lenUsada, 0); if (lenA < lenB) mejorResultado = res; } }
-      }
-      contenedoresFisicos = mejorResultado || [];
-      if (contenedoresFisicos.length > 0) {
-          let ultIdx = contenedoresFisicos.length - 1; let ultCont = contenedoresFisicos[ultIdx];
-          if (ultCont.tipoKey === '40ft' || ultCont.tipoKey === '40hc') {
-              let cajasRemanentes = ultCont.cajas.map(c => ({...c, locked: false})); let nuevoCont20 = testFitInOneContainer(cajasRemanentes, '20ft');
-              if (nuevoCont20 !== null) { nuevoCont20.cajas.forEach(c => c.contIdx = ultIdx); contenedoresFisicos[ultIdx] = nuevoCont20; }
+      let loader = document.getElementById('loading-overlay');
+      if (loader) loader.style.display = 'flex';
+
+      setTimeout(() => {
+          sincronizarInstancias(); 
+          
+          let typesToUse = contenedoresFisicos.map(c => c.tipoKey);
+          let defaultType = document.getElementById('ribbon-cont-type').value || '40ft';
+          if (typesToUse.length === 0) {
+              typesToUse.push(defaultType);
           }
-      } actualizarUIContenedores();
+
+          if (instanciasCajas.length === 0) { 
+              contenedoresFisicos = [crearContenedor(typesToUse[0])]; 
+              actualizarUIContenedores(); 
+              if (loader) loader.style.display = 'none';
+              return; 
+          }
+
+          let flatItems = [];
+          instanciasCajas.forEach(c => flatItems.push({...c}));
+
+          let resultadoFinal = [];
+          let remainingCargo = flatItems;
+          let cIdx = 0;
+
+          while (remainingCargo.length > 0) {
+              let nextType = cIdx === 0 ? typesToUse[0] : null;
+              
+              if (!nextType) {
+                  let remVol = remainingCargo.reduce((acc, c) => acc + (c.w*c.h*c.d)/1000000, 0);
+                  let remWgt = remainingCargo.reduce((acc, c) => acc + (c.weight||0), 0);
+                  let db20 = dbContenedores['20ft'];
+                  
+                  if (db20 && remVol <= db20.maxVol * 0.95 && remWgt <= db20.maxWeight) {
+                      nextType = '20ft';
+                  } else {
+                      nextType = defaultType;
+                  }
+              }
+
+              let contCand = crearContenedor(nextType);
+              let res = empaquetarConGuillotinaBloques(remainingCargo, contCand);
+              
+              res.cont.cajas.forEach(c => c.contIdx = resultadoFinal.length);
+              resultadoFinal.push(res.cont);
+              remainingCargo = res.unpacked;
+              cIdx++;
+              
+              if (res.cont.cajas.length === 0) break;
+          }
+
+          contenedoresFisicos = resultadoFinal;
+          
+          // --- V6.7: SINCRONIZACIÓN DE ESTADO PARA GUARDADO ---
+          // Actualizamos instanciasCajas con las posiciones exactas optimizadas para que el JSON quede perfecto
+          instanciasCajas = [];
+          resultadoFinal.forEach((cont, idx) => {
+              cont.cajas.forEach(c => {
+                  c.contIdx = idx;
+                  instanciasCajas.push(c);
+              });
+          });
+          if (remainingCargo && remainingCargo.length > 0) {
+              remainingCargo.forEach(c => {
+                  c.contIdx = -1; // No se empacó
+                  instanciasCajas.push(c);
+              });
+          }
+
+          actualizarUIContenedores();
+          if (loader) loader.style.display = 'none';
+      }, 50);
     }
 
     function actualizarUIContenedores() {
@@ -660,8 +886,6 @@
       if(is3DInitialized) actualizarRenderCajas(); 
     }
 
-    function cambiarContenedorIndividual() { const idx = parseInt(document.getElementById('view-cont-select').value); if(!isNaN(idx)) { contenedoresFisicos[idx].tipoKey = document.getElementById('individual-cont-type').value; optimizarCarga(); } }
-
     function bloquearSeleccion(lockState) { let changed = false; if (selectedGroupId) { instanciasCajas.forEach(inst => { if (String(inst.groupId) === String(selectedGroupId)) { inst.locked = lockState; changed = true; } }); } else if (selectedMeshUUID) { let inst = instanciasCajas.find(i => i.uuid === selectedMeshUUID); if (inst) { inst.locked = lockState; changed = true; } } if (changed) actualizarRenderCajas(); }
 
     function init3D() {
@@ -678,7 +902,12 @@
     function construirEscena3D() {
       init3D(); while(mainGroup.children.length > 0) { let obj = mainGroup.children[0]; if(obj.geometry) obj.geometry.dispose(); mainGroup.remove(obj); } objectsInteractables = [];
       const gapX = 150; let totalWidth = 0; let maxH = 250, maxD = 1200; contenedoresFisicos.forEach(c => { totalWidth += c.w + gapX; if(c.h > maxH) maxH = c.h; if(c.d > maxD) maxD = c.d; });
-      let centerX = -(totalWidth - gapX) / 2; camera.position.set(centerX + (totalWidth*0.7), maxH * 2.5, maxD * 1.5); controls.target.set(centerX, maxH/2, maxD/2);
+      let centerX = -(totalWidth - gapX) / 2; 
+      
+      camera.position.set(centerX + maxD * 0.9, maxH * 2.2, maxD * 1.2); 
+      controls.target.set(centerX, maxH / 2, maxD / 2);
+      controls.update();
+
       let currentOffsetX = 0;
       contenedoresFisicos.forEach((contenedor, idx) => {
          const contGeo = new THREE.BoxGeometry(contenedor.w, contenedor.h, contenedor.d); contGeo.translate((contenedor.w/2) + currentOffsetX, contenedor.h/2, contenedor.d/2);
@@ -716,19 +945,23 @@
         if (intersects.length > 0) { let clickedUUID = intersects[0].object.userData.uuid; selectedMeshUUID = (selectedMeshUUID === clickedUUID) ? null : clickedUUID; selectedGroupId = null; actualizarTabla(); } else { selectedMeshUUID = null; selectedGroupId = null; actualizarTabla(); } actualizarRenderCajas(); 
     }
 
-    // --- REGISTRO PWA Y FILE HANDLING ---
     if ('serviceWorker' in navigator) { navigator.serviceWorker.register('sw.js').catch(console.error); }
     if ('launchQueue' in window) {
         window.launchQueue.setConsumer(async (launchParams) => {
             if (launchParams.files.length > 0) {
                 const fileHandle = launchParams.files[0];
                 const file = await fileHandle.getFile();
-                cargarArchivo({ target: { files: [file] } });
+                cargarArchivoInput({ target: { files: [file] } });
             }
         });
     }
 
-    window.onload = function() { initColorMenu(); updateAllContDropdowns(); limpiarTodo(); };
+    window.onload = function() { 
+        document.getElementById('app-version-text').innerText = APP_VERSION;
+        initColorMenu(); 
+        updateAllContDropdowns(); 
+        limpiarTodo(); 
+    };
   </script>
 </body>
 </html>
