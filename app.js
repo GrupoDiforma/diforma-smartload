@@ -18,7 +18,8 @@ function generateUUID() {
 let dbContenedores = {
   '20ft': { nombre: "20' Standard Container", w: 233, h: 235.6, d: 591.8, maxWeight: 21687, maxVol: 32.487, isSystem: true },
   '40ft': { nombre: "40' Standard Container", w: 233, h: 238.9, d: 1201.5, maxWeight: 26500, maxVol: 67.5, isSystem: true },
-  '40hc': { nombre: "40' High Cube Container", w: 235, h: 269, d: 1201.3, maxWeight: 26500, maxVol: 76.0, isSystem: true }
+  '40hc': { nombre: "40' High Cube Container", w: 235, h: 269, d: 1201.3, maxWeight: 26500, maxVol: 76.0, isSystem: true },
+  'custom': { nombre: "Custom Container", w: 235, h: 239, d: 1200, maxWeight: 26500, maxVol: 67.39, isSystem: true }
 };
 
 const colorPalette = [
@@ -77,22 +78,56 @@ function updateAllContDropdowns() {
     });
 }
 
-function cambiarTipoContenedorGlobal() { optimizarCarga(); }
+function actualizarCustomDimensions() {
+    dbContenedores['custom'].w = parseFloat(document.getElementById('cc-w').value) || 235;
+    dbContenedores['custom'].d = parseFloat(document.getElementById('cc-d').value) || 1200;
+    dbContenedores['custom'].h = parseFloat(document.getElementById('cc-h').value) || 239;
+    dbContenedores['custom'].maxWeight = parseFloat(document.getElementById('cc-kg').value) || 26500;
+    dbContenedores['custom'].maxVol = (dbContenedores['custom'].w * dbContenedores['custom'].h * dbContenedores['custom'].d) / 1000000;
+    
+    if (contenedoresFisicos.length > 0 && contenedoresFisicos[0].tipoKey === 'custom') {
+        contenedoresFisicos[0] = crearContenedor('custom');
+    }
+    optimizarCarga();
+}
+
+function cambiarTipoContenedorGlobal() { 
+    let key = document.getElementById('ribbon-cont-type').value;
+    let customDiv = document.getElementById('custom-cont-dims');
+    if (key === 'custom') {
+        if (customDiv) customDiv.style.display = 'flex';
+        actualizarCustomDimensions();
+    } else {
+        if (customDiv) customDiv.style.display = 'none';
+        contenedoresFisicos = [crearContenedor(key)];
+        optimizarCarga();
+    }
+}
+
 function abrirModalContainers() { let mb = document.getElementById('modal-containers'); mb.style.display = 'block'; if (!mb.style.top) { mb.style.top = '100px'; mb.style.left = '200px'; } showContLibrary(); }
 function cerrarModalContainers() { document.getElementById('modal-containers').style.display = 'none'; }
 
 function showContLibrary() {
-    let html = '<h4 style="margin-top:0; color:#00156e;">Container Library</h4><table style="width:100%; text-align:left; border-collapse:collapse;"><tr><th style="border-bottom:1px solid #ccc; padding-bottom:5px;">Name</th><th style="border-bottom:1px solid #ccc;">W x H x D (cm)</th><th style="border-bottom:1px solid #ccc;">Max Wgt (kg)</th><th></th></tr>';
+    let html = '<h4 style="margin-top:0; color:var(--fluent-accent);">Librería de Contenedores</h4><table style="width:100%; text-align:left; border-collapse:collapse;"><tr><th style="border-bottom:1px solid #ccc; padding-bottom:5px;">Nombre</th><th style="border-bottom:1px solid #ccc;">W x H x D (cm)</th><th style="border-bottom:1px solid #ccc;">Peso Máx (kg)</th><th></th></tr>';
     for(let key in dbContenedores) { let c = dbContenedores[key]; html += `<tr><td style="padding:5px 0;">${c.nombre}</td><td>${c.w} x ${c.h} x ${c.d}</td><td>${c.maxWeight}</td><td>${!c.isSystem ? `<button onclick="borrarContTipo('${key}')" style="cursor:pointer; color:red; border:none; background:transparent;">❌</button>` : ''}</td></tr>`; }
     document.getElementById('cont-main-area').innerHTML = html + '</table>';
 }
 
 function showNewContForm() {
-    let html = `<h4 style="margin-top:0; color:#00156e;">Define New Container</h4><div class="form-group"><label style="width:120px;">Name:</label><input type="text" id="nc-name" value="Custom Reefer"></div><div class="form-group"><label style="width:120px;">Width (cm):</label><input type="number" id="nc-w" value="230"></div><div class="form-group"><label style="width:120px;">Depth (cm):</label><input type="number" id="nc-d" value="1150"></div><div class="form-group"><label style="width:120px;">Height (cm):</label><input type="number" id="nc-h" value="235"></div><div class="form-group"><label style="width:120px;">Max Weight (kg):</label><input type="number" id="nc-kg" value="25000"></div><div style="margin-top:20px; text-align:right;"><button class="btn-ok" onclick="guardarNuevoContenedor()">💾 Save Container</button></div>`;
+    let html = `<h4 style="margin-top:0; color:var(--fluent-accent);">Definir Nuevo Contenedor</h4><div class="form-group"><label style="width:120px;">Nombre:</label><input type="text" id="nc-name" value="Custom Reefer"></div><div class="form-group"><label style="width:120px;">Ancho (cm):</label><input type="number" id="nc-w" value="230"></div><div class="form-group"><label style="width:120px;">Largo (cm):</label><input type="number" id="nc-d" value="1150"></div><div class="form-group"><label style="width:120px;">Alto (cm):</label><input type="number" id="nc-h" value="235"></div><div class="form-group"><label style="width:120px;">Peso Máx (kg):</label><input type="number" id="nc-kg" value="25000"></div><div style="margin-top:20px; text-align:right;"><button class="btn-ok" onclick="guardarNuevoContenedor()">💾 Guardar Contenedor</button></div>`;
     document.getElementById('cont-main-area').innerHTML = html;
 }
 
-function guardarNuevoContenedor() { let key = 'custom_' + Date.now(); let w = parseFloat(document.getElementById('nc-w').value); let d = parseFloat(document.getElementById('nc-d').value); let h = parseFloat(document.getElementById('nc-h').value); dbContenedores[key] = { nombre: document.getElementById('nc-name').value, w: w, h: h, d: d, maxWeight: parseFloat(document.getElementById('nc-kg').value), maxVol: (w*h*d)/1000000, isSystem: false }; updateAllContDropdowns(); showContLibrary(); }
+function guardarNuevoContenedor() { 
+    let key = 'custom_' + Date.now(); 
+    let w = parseFloat(document.getElementById('nc-w').value); 
+    let d = parseFloat(document.getElementById('nc-d').value); 
+    let h = parseFloat(document.getElementById('nc-h').value); 
+    dbContenedores[key] = { nombre: document.getElementById('nc-name').value, w: w, h: h, d: d, maxWeight: parseFloat(document.getElementById('nc-kg').value), maxVol: (w*h*d)/1000000, isSystem: false }; 
+    updateAllContDropdowns(); 
+    showContLibrary(); 
+}
+
 function borrarContTipo(key) { delete dbContenedores[key]; updateAllContDropdowns(); showContLibrary(); }
 
 function escapeXML(str) { return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
@@ -145,13 +180,13 @@ async function guardarArchivo(forceSaveAs = false) {
           const writable = await handle.createWritable(); 
           await writable.write(xmlData); 
           await writable.close(); 
-          mostrarToast("✅ Archivo guardado y sobrescrito correctamente.");
+          mostrarToast("✅ Archivo guardado correctamente.");
           return; 
       } catch (err) { if(err.name === 'AbortError') return; }
   }
   
   const blob = new Blob([xmlData], {type: "text/xml"}); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = fileName; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
-  mostrarToast("✅ Archivo descargado en tu carpeta de descargas.");
+  mostrarToast("✅ Archivo descargado.");
 }
 
 async function abrirArchivo() {
@@ -242,7 +277,7 @@ function updateFitCalc() {
         if(weight > 0) { let maxByWeight = Math.floor(cont.maxWeight / weight); if(fitUnits > maxByWeight) fitUnits = maxByWeight; }
         if(fitUnits > maxFit) maxFit = fitUnits;
     }
-    document.getElementById('fit-text').innerText = maxFit + " items fit into"; document.getElementById('m-qty').className = (qty > maxFit) ? 'qty-input-red' : 'qty-input-normal';
+    document.getElementById('fit-text').innerText = maxFit + " ítems caben en"; document.getElementById('m-qty').className = (qty > maxFit) ? 'qty-input-red' : 'qty-input-normal';
 }
 
 function limpiarTodo() {
@@ -268,13 +303,13 @@ function guardarItem() {
 function seleccionarFila(id) { id = String(id); if (String(selectedGroupId) === id) { selectedGroupId = null; } else { selectedGroupId = id; } selectedMeshUUID = null; actualizarTabla(); actualizarRenderCajas(); }
 
 function editarItemLista(idParaEditar = null) {
-  const targetId = idParaEditar || selectedGroupId; if(!targetId) { alert("Selecciona un item de la lista."); return; }
+  const targetId = idParaEditar || selectedGroupId; if(!targetId) { alert("Selecciona un ítem de la lista."); return; }
   const item = listaEmpaque.find(i => String(i.id) === String(targetId)); if(!item) return;
   document.getElementById('m-id').value = item.id; document.getElementById('m-shape').value = item.shape || 'box'; document.getElementById('m-qty').value = item.qty; document.getElementById('m-desc').value = item.desc; document.getElementById('m-w').value = item.w; document.getElementById('m-d').value = item.d; document.getElementById('m-h').value = item.h; document.getElementById('m-weight').value = item.weight; setColorById(item.color); document.getElementById('m-no-tilt').checked = item.noTilt; document.getElementById('m-no-turn').checked = item.noTurn; document.getElementById('m-floor').checked = item.onFloor; document.getElementById('m-danger').checked = item.dangerous || false; abrirModalCaja(true);
 }
 
 function duplicarItemLista() {
-    if(!selectedGroupId) { alert("Selecciona un item de la lista para duplicar."); return; }
+    if(!selectedGroupId) { alert("Selecciona un ítem de la lista para duplicar."); return; }
     const itemOriginal = listaEmpaque.find(i => String(i.id) === String(selectedGroupId)); if(!itemOriginal) return;
     const itemCopia = { ...itemOriginal, id: generateUUID() }; listaEmpaque.push(itemCopia); selectedGroupId = itemCopia.id; actualizarTabla(); optimizarCarga();
 }
@@ -304,19 +339,42 @@ function sincronizarInstancias() {
 }
 
 function obtenerContenedorActivo() { let key = document.getElementById('ribbon-cont-type').value; return dbContenedores[key] || dbContenedores['40ft']; }
-function crearContenedor(tipoKey) { let db = dbContenedores[tipoKey] || obtenerContenedorActivo(); let tk = dbContenedores[tipoKey] ? tipoKey : document.getElementById('ribbon-cont-type').value; return { tipoKey: tk, nombre: db.nombre, w: db.w, h: db.h, d: db.d, maxWeight: db.maxWeight, maxVol: db.maxVol, cajas: [], pesoActual: 0, volActual: 0, lenUsada: 0 }; }
+
+function crearContenedor(tipoKey) { 
+    let db = dbContenedores[tipoKey] || obtenerContenedorActivo(); 
+    let tk = dbContenedores[tipoKey] ? tipoKey : document.getElementById('ribbon-cont-type').value; 
+    return { 
+        tipoKey: tk, 
+        nombre: db.nombre, 
+        w: db.w, 
+        h: db.h, 
+        d: db.d, 
+        maxWeight: db.maxWeight, 
+        maxVol: db.maxVol, 
+        cajas: [], 
+        pesoActual: 0, 
+        volActual: 0, 
+        lenUsada: 0 
+    }; 
+}
 
 function cambiarContenedorIndividual() { 
     const idx = parseInt(document.getElementById('view-cont-select').value); 
-    if(!isNaN(idx)) { 
-        contenedoresFisicos[idx].tipoKey = document.getElementById('individual-cont-type').value; 
+    if(!isNaN(idx) && contenedoresFisicos[idx]) { 
+        let newType = document.getElementById('individual-cont-type').value;
+        let nuevoCont = crearContenedor(newType);
+        contenedoresFisicos[idx].tipoKey = nuevoCont.tipoKey;
+        contenedoresFisicos[idx].nombre = nuevoCont.nombre;
+        contenedoresFisicos[idx].w = nuevoCont.w;
+        contenedoresFisicos[idx].h = nuevoCont.h;
+        contenedoresFisicos[idx].d = nuevoCont.d;
+        contenedoresFisicos[idx].maxWeight = nuevoCont.maxWeight;
+        contenedoresFisicos[idx].maxVol = nuevoCont.maxVol;
         optimizarCarga(); 
     } 
 }
 
-// ==========================================
 // CONEXIÓN CON EL BACKEND DE PYTHON
-// ==========================================
 async function optimizarCarga() {
     let loader = document.getElementById('loading-overlay');
     if (loader) loader.style.display = 'flex';
@@ -364,18 +422,18 @@ async function optimizarCarga() {
 }
 
 function actualizarUIContenedores() {
-  const select = document.getElementById('view-cont-select'); select.innerHTML = '<option value="">-- View All (Global Info) --</option>'; 
-  if(contenedoresFisicos.length === 0) { document.getElementById('change-type-div').style.display = 'none'; } else { contenedoresFisicos.forEach((c, idx) => { select.innerHTML += `<option value="${idx}">Container #${idx+1} (${c.nombre})</option>`; }); document.getElementById('change-type-div').style.display = 'flex'; }
+  const select = document.getElementById('view-cont-select'); select.innerHTML = '<option value="">-- Ver Todos (Info Global) --</option>'; 
+  if(contenedoresFisicos.length === 0) { document.getElementById('change-type-div').style.display = 'none'; } else { contenedoresFisicos.forEach((c, idx) => { select.innerHTML += `<option value="${idx}">Contenedor #${idx+1} (${c.nombre})</option>`; }); document.getElementById('change-type-div').style.display = 'flex'; }
   actualizarPanelDerecho(); construirEscena3D(); 
 }
 
 function actualizarPanelDerecho() {
   const idx = document.getElementById('view-cont-select').value; let totalVolMax = 0, totalVolAct = 0, totalWgtMax = 0, totalWgtAct = 0, totalLenMax = 0, totalLenAct = 0;
   if(idx === "") {
-      document.getElementById('cont-name').innerText = "Container Info (Global)"; document.getElementById('change-type-div').style.display = 'none';
+      document.getElementById('cont-name').innerText = "Info Contenedores (Global)"; document.getElementById('change-type-div').style.display = 'none';
       if(contenedoresFisicos.length === 0) { let empty = dbContenedores[document.getElementById('ribbon-cont-type').value]; totalVolMax = empty ? empty.maxVol : 0; totalWgtMax = empty ? empty.maxWeight : 0; totalLenMax = empty ? empty.d : 0; } else { contenedoresFisicos.forEach(c => { totalVolMax += c.maxVol; totalVolAct += c.volActual; totalWgtMax += c.maxWeight; totalWgtAct += c.pesoActual; totalLenMax += c.d; totalLenAct += c.lenUsada; }); }
   } else {
-      document.getElementById('change-type-div').style.display = 'flex'; const c = contenedoresFisicos[idx]; document.getElementById('individual-cont-type').value = c.tipoKey; document.getElementById('cont-name').innerText = `Container #${parseInt(idx)+1} (${c.nombre})`;
+      document.getElementById('change-type-div').style.display = 'flex'; const c = contenedoresFisicos[idx]; document.getElementById('individual-cont-type').value = c.tipoKey; document.getElementById('cont-name').innerText = `Contenedor #${parseInt(idx)+1} (${c.nombre})`;
       totalVolMax = c.maxVol; totalVolAct = c.volActual; totalWgtMax = c.maxWeight; totalWgtAct = c.pesoActual; totalLenMax = c.d; totalLenAct = c.lenUsada;
   }
   let pctVol = totalVolMax > 0 ? ((totalVolAct / totalVolMax) * 100).toFixed(1) : "0.0"; document.getElementById('vol-text').innerHTML = `${totalVolAct.toFixed(3)} m³<br>${totalVolMax.toFixed(3)} m³`; document.getElementById('bar-vol').style.width = `${pctVol}%`; document.getElementById('pct-vol').innerText = `${pctVol}%`;
