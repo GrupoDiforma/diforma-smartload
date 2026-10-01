@@ -2,20 +2,20 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   
-  <title>SmartLoad V13</title>
+  <title>SmartLoad V14.0</title>
   
   <!-- Configuración PWA -->
   <link rel="manifest" href="manifest.json">
-  <meta name="theme-color" content="#00156e">
+  <meta name="theme-color" content="#0067c0">
   <link rel="apple-touch-icon" href="https://diformainstore.com/wp-content/uploads/2021/04/cropped-Diforma-Icon-192x192.png">
   
   <link rel="icon" type="image/png" href="./favicon.png">
   
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap" rel="stylesheet">
   
   <link rel="stylesheet" href="styles.css">
 
@@ -25,10 +25,10 @@
 <body>
 
   <!-- PANTALLA DE CARGA -->
-  <div id="loading-overlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(255,255,255,0.85); z-index:9999; justify-content:center; align-items:center; flex-direction:column;">
-      <div style="width: 60px; height: 60px; border: 6px solid #e6f0fa; border-top-color: #cc0000; border-radius: 50%; animation: spin 1s linear infinite;"></div>
-      <div style="font-size:20px; color:#00156e; font-weight:900; margin-top:15px; font-family: 'Inter', sans-serif; font-style:italic;">Optimizando Carga...</div>
-      <div style="font-size:12px; color:#666; margin-top:5px; font-family: 'Inter', sans-serif; max-width: 300px; text-align: center;">Conectando con Backend Python V13.0</div>
+  <div id="loading-overlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(255,255,255,0.85); z-index:9999; justify-content:center; align-items:center; flex-direction:column; backdrop-filter: blur(8px);">
+      <div style="width: 50px; height: 50px; border: 5px solid #e6f0fa; border-top-color: #0067c0; border-radius: 50%; animation: spin 0.8s linear infinite;"></div>
+      <div style="font-size:18px; color:#0067c0; font-weight:700; margin-top:16px;">Optimizando Carga...</div>
+      <div style="font-size:12px; color:#5d5d5d; margin-top:4px; text-align: center;">SmartLoad Engine V14.0</div>
   </div>
 
   <div id="toast-msg">✅ Archivo guardado correctamente.</div>
@@ -37,21 +37,21 @@
 
   <div id="ribbon">
     <div class="ribbon-group">
-      <div class="btn" onclick="limpiarTodo()"><div class="btn-icon">📄</div>New</div>
-      <div class="btn" onclick="abrirArchivo()"><div class="btn-icon">📂</div>Open</div>
-      <div style="display:flex; flex-direction:column; gap:2px; margin-left:5px;">
-        <label style="font-size:10px; color:#666;">File Name:</label>
-        <div style="display:flex; align-items:center; gap:5px;">
-            <input type="text" id="save-filename" value="MiCargaLoad" style="width:100px;">
-            <div class="btn" style="flex-direction:row; padding:4px 8px; background:white; border:1px solid #ccc;" onclick="guardarArchivo(false)">💾 Save</div>
-            <div class="btn" style="flex-direction:row; padding:4px 8px; background:white; border:1px solid #ccc;" onclick="guardarArchivo(true)">📥 Save As</div>
+      <div class="btn" onclick="limpiarTodo()"><div class="btn-icon">📄</div>Nuevo</div>
+      <div class="btn" onclick="abrirArchivo()"><div class="btn-icon">📂</div>Abrir</div>
+      <div style="display:flex; flex-direction:column; gap:2px; margin-left:4px;">
+        <label style="font-size:10px; color:var(--fluent-text-secondary);">Archivo:</label>
+        <div style="display:flex; align-items:center; gap:4px;">
+            <input type="text" id="save-filename" value="MiCargaLoad" style="width:95px;">
+            <div class="btn" style="flex-direction:row; padding:4px 8px; background:var(--fluent-card-solid); border:1px solid var(--fluent-border);" onclick="guardarArchivo(false)">💾 Guardar</div>
+            <div class="btn" style="flex-direction:row; padding:4px 8px; background:var(--fluent-card-solid); border:1px solid var(--fluent-border);" onclick="guardarArchivo(true)">📥 Como</div>
         </div>
       </div>
     </div>
     <div class="ribbon-group">
-      <div class="btn" onclick="abrirModalContainers()"><div class="btn-icon">🗃️</div>Containers</div>
-      <div style="display:flex; flex-direction:column; gap:3px;">
-        <label><b>Default Container:</b></label>
+      <div class="btn" onclick="abrirModalContainers()"><div class="btn-icon">🗃️</div>Equipos</div>
+      <div style="display:flex; flex-direction:column; gap:2px;">
+        <label><b>Contenedor Base:</b></label>
         <div style="display:flex; align-items:center;">
           <select id="ribbon-cont-type" onchange="cambiarTipoContenedorGlobal()"></select>
           <div id="custom-cont-dims">
@@ -64,34 +64,34 @@
       </div>
     </div>
     <div class="ribbon-group">
-      <div class="btn" onclick="optimizarCarga()"><div class="btn-icon">⚙️</div>Optimize</div>
+      <div class="btn" style="background: var(--fluent-accent); color: white; border-radius: var(--fluent-radius-sm);" onclick="optimizarCarga()"><div class="btn-icon">⚙️</div>Optimizar</div>
     </div>
     <div class="ribbon-group">
-      <div class="btn" onclick="abrirModalCaja(false)"><div class="btn-icon">➕</div>Add</div>
-      <div class="btn" onclick="editarItemLista()"><div class="btn-icon">✏️</div>Edit</div>
-      <div class="btn" onclick="duplicarItemLista()"><div class="btn-icon">📑</div>Duplicate</div>
-      <div class="btn" onclick="borrarItemLista()"><div class="btn-icon">❌</div>Delete</div>
+      <div class="btn" onclick="abrirModalCaja(false)"><div class="btn-icon">➕</div>Agregar</div>
+      <div class="btn" onclick="editarItemLista()"><div class="btn-icon">✏️</div>Editar</div>
+      <div class="btn" onclick="duplicarItemLista()"><div class="btn-icon">📑</div>Duplicar</div>
+      <div class="btn" onclick="borrarItemLista()"><div class="btn-icon">❌</div>Eliminar</div>
     </div>
     <div class="ribbon-group">
-      <div class="btn" onclick="bloquearSeleccion(true)"><div class="btn-icon">🔒</div>Lock</div>
-      <div class="btn" onclick="bloquearSeleccion(false)"><div class="btn-icon">🔓</div>Unlock</div>
+      <div class="btn" onclick="bloquearSeleccion(true)"><div class="btn-icon">🔒</div>Bloquear</div>
+      <div class="btn" onclick="bloquearSeleccion(false)"><div class="btn-icon">🔓</div>Liberar</div>
     </div>
     
     <div id="branding-area">
       <span class="app-title">Diforma <span>SmartLoad</span></span>
-      <span class="app-version" id="app-version-text">V13.0 UI</span>
+      <span class="app-version" id="app-version-text">V14.0 Fluent</span>
     </div>
   </div>
 
   <div id="main-area">
     <div id="canvas-container"></div>
     <div id="container-selector-panel">
-      <span>Container Stats & View:</span>
+      <span>Vista y Métricas por Contenedor:</span>
       <select id="view-cont-select" onchange="actualizarPanelDerecho()"></select>
-      <div id="change-type-div" style="display:none; flex-direction:column; gap:5px; margin-top:5px; border-top:1px solid #ccc; padding-top:5px;">
-        <span>Change <b>THIS</b> container to:</span>
+      <div id="change-type-div" style="display:none; flex-direction:column; gap:6px; margin-top:4px; border-top:1px solid var(--fluent-border); padding-top:6px;">
+        <span>Cambiar <b>ESTE</b> equipo a:</span>
         <select id="individual-cont-type"></select>
-        <button onclick="cambiarContenedorIndividual()" style="padding:4px; cursor:pointer;">Apply & Re-Optimize</button>
+        <button onclick="cambiarContenedorIndividual()">Aplicar y Re-Optimizar</button>
       </div>
     </div>
   </div>
@@ -100,33 +100,33 @@
     <div id="packing-list-panel">
       <div id="packing-list-table-container">
         <table id="pack-table">
-          <thead><tr><th width="20"></th><th width="40">Qty</th><th>Description</th><th width="50">Width</th><th width="50">Depth</th><th width="50">Height</th><th width="50">Weight</th></tr></thead>
+          <thead><tr><th width="24"></th><th width="45">Cant</th><th>Descripción</th><th width="55">Ancho</th><th width="55">Largo</th><th width="55">Alto</th><th width="55">Peso</th></tr></thead>
           <tbody id="table-body"></tbody>
         </table>
       </div>
       <div id="action-buttons">
-        <div class="side-btn" onclick="abrirModalCaja(false)">➕ Add</div>
-        <div class="side-btn" onclick="editarItemLista()">✏️ Edit</div>
-        <div class="side-btn" onclick="duplicarItemLista()">📑 Duplicate</div>
-        <div class="side-btn" onclick="borrarItemLista()">❌ Delete</div>
+        <div class="side-btn" onclick="abrirModalCaja(false)">➕ Agregar</div>
+        <div class="side-btn" onclick="editarItemLista()">✏️ Editar</div>
+        <div class="side-btn" onclick="duplicarItemLista()">📑 Duplicar</div>
+        <div class="side-btn" onclick="borrarItemLista()">❌ Eliminar</div>
       </div>
     </div>
 
     <div id="container-info">
-      <div class="info-title" id="cont-name">Container Info</div>
+      <div class="info-title" id="cont-name">Métricas del Contenedor</div>
       <div class="progress-row">
-        <div class="progress-label">Volume<br>max.</div>
-        <div style="width: 60px; text-align:right; margin-right:5px;" id="vol-text">0 m³<br>0 m³</div>
+        <div class="progress-label">Volumen<br>Máx.</div>
+        <div style="width: 65px; text-align:right; margin-right:6px;" id="vol-text">0 m³<br>0 m³</div>
         <div class="progress-bar-bg"><div class="progress-bar-fill" id="bar-vol"></div><div class="progress-text" id="pct-vol">0.0%</div></div>
       </div>
       <div class="progress-row">
-        <div class="progress-label">Weight<br>max.</div>
-        <div style="width: 60px; text-align:right; margin-right:5px;" id="wgt-text">0 kg<br>0 kg</div>
-        <div class="progress-bar-bg"><div class="progress-bar-fill" id="bar-wgt" style="background: linear-gradient(to bottom, #90caf9, #1976d2);"></div><div class="progress-text" id="pct-wgt">0.0%</div></div>
+        <div class="progress-label">Peso<br>Máx.</div>
+        <div style="width: 65px; text-align:right; margin-right:6px;" id="wgt-text">0 kg<br>0 kg</div>
+        <div class="progress-bar-bg"><div class="progress-bar-fill" id="bar-wgt" style="background: linear-gradient(90deg, #00b7c3, #0078d4);"></div><div class="progress-text" id="pct-wgt">0.0%</div></div>
       </div>
       <div class="progress-row">
-        <div class="progress-label">Loading Length<br>max.<br>remaining</div>
-        <div style="width: 60px; text-align:right; margin-right:5px;" id="len-text">0 cm<br>0 cm<br>0 cm</div>
+        <div class="progress-label">Largo Carga<br>Máx.<br>Restante</div>
+        <div style="width: 65px; text-align:right; margin-right:6px;" id="len-text">0 cm<br>0 cm<br>0 cm</div>
         <div class="progress-bar-bg"><div class="progress-bar-fill" id="bar-len"></div><div class="progress-text" id="pct-len">0.0%</div></div>
       </div>
     </div>
@@ -134,42 +134,42 @@
 
   <!-- Modales -->
   <div id="modal-containers" class="draggable-modal" style="width: 500px;">
-    <div class="modal-header-drag" id="modal-containers-header"><span>Container Type Library</span><span style="cursor:pointer;" onclick="cerrarModalContainers()">✖</span></div>
-    <div class="modal-body" style="display:flex; height: 320px; padding:0; background:white;">
-        <div style="width: 160px; background: #e6f0fa; border-right: 1px solid #aebfd6; padding: 15px;">
-            <b style="color:#00156e;">Library Options</b><br><br>
-            <div class="safe-link" onclick="showContLibrary()">📄 View Container Library</div>
-            <div class="safe-link" onclick="showNewContForm()">➕ Define New Type</div>
+    <div class="modal-header-drag" id="modal-containers-header"><span>Librería de Equipos / Contenedores</span><span style="cursor:pointer;" onclick="cerrarModalContainers()">✖</span></div>
+    <div class="modal-body" style="display:flex; height: 320px; padding:0; background:var(--fluent-card-solid);">
+        <div style="width: 160px; background: var(--fluent-bg); border-right: 1px solid var(--fluent-border); padding: 14px;">
+            <b style="color:var(--fluent-accent);">Opciones Librería</b><br><br>
+            <div class="safe-link" onclick="showContLibrary()">📄 Ver Librería</div>
+            <div class="safe-link" onclick="showNewContForm()">➕ Nuevo Tipo</div>
         </div>
-        <div id="cont-main-area" style="flex:1; padding: 15px; overflow-y:auto; background:white;"></div>
+        <div id="cont-main-area" style="flex:1; padding: 14px; overflow-y:auto; background:var(--fluent-card-solid);"></div>
     </div>
   </div>
 
   <div id="modal-box" class="draggable-modal" style="width: 500px;">
-    <div class="modal-header-drag" id="modal-box-header"><span>Packing List Item</span><span style="cursor:pointer;" onclick="cerrarModalCaja()">✖</span></div>
+    <div class="modal-header-drag" id="modal-box-header"><span>Item de Carga</span><span style="cursor:pointer;" onclick="cerrarModalCaja()">✖</span></div>
     <div class="modal-body">
-      <div class="title-gradient">Packing List Item</div>
+      <div class="title-gradient">Configurar Item de Carga</div>
       <input type="hidden" id="m-id">
       <div class="form-group" style="align-items:flex-start;">
-        <label>Quantity:</label>
+        <label>Cantidad:</label>
         <div>
             <input type="number" id="m-qty" class="qty-input-normal" value="10" min="1" oninput="updateFitCalc()" style="width:70px;">
-            <div style="display:inline-block; vertical-align:top; margin-left:10px; font-size:11px;">
-                <span id="fit-text" style="color:#333;">X items fit into</span><br>
+            <div style="display:inline-block; vertical-align:top; margin-left:8px; font-size:11px;">
+                <span id="fit-text" style="color:var(--fluent-text-secondary);">X ítems caben en</span><br>
                 <select id="m-fit-cont" class="link-select" onchange="updateFitCalc()"></select>
             </div>
         </div>
       </div>
-      <div class="form-group" style="border-bottom: 1px solid #ccc; padding-bottom: 10px; margin-bottom: 10px;">
-        <label>Description:</label><input type="text" id="m-desc" value="Item Nuevo" style="width: 250px;">
+      <div class="form-group" style="border-bottom: 1px solid var(--fluent-border); padding-bottom: 10px; margin-bottom: 10px;">
+        <label>Descripción:</label><input type="text" id="m-desc" value="Item Nuevo" style="width: 250px;">
       </div>
       <div style="display: flex; align-items: center;">
           <div style="flex: 1;">
-            <div class="form-group"><label style="font-weight:bold;">Shape:</label><select id="m-shape" onchange="updateMini3D(); updateFitCalc();"><option value="pallet">Pallet</option><option value="box">Box</option><option value="barrel">Barrel</option></select></div>
-            <div class="form-group"><label>Width:</label><input type="number" id="m-w" value="129" oninput="updateMini3D(); updateFitCalc();"> <a class="unit-link">cm</a></div>
-            <div class="form-group"><label>Depth:</label><input type="number" id="m-d" value="129" oninput="updateMini3D(); updateFitCalc();"> <a class="unit-link">cm</a></div>
-            <div class="form-group"><label>Height:</label><input type="number" id="m-h" value="165" oninput="updateMini3D(); updateFitCalc();"> <a class="unit-link">cm</a></div>
-            <div class="form-group"><label>Weight:</label><input type="number" id="m-weight" value="0" oninput="updateFitCalc()"> <a class="unit-link">kg</a></div>
+            <div class="form-group"><label style="font-weight:600;">Geometría:</label><select id="m-shape" onchange="updateMini3D(); updateFitCalc();"><option value="pallet">Estiba (Pallet)</option><option value="box">Caja (Box)</option><option value="barrel">Cilindro / Tambor</option></select></div>
+            <div class="form-group"><label>Ancho:</label><input type="number" id="m-w" value="129" oninput="updateMini3D(); updateFitCalc();"> <a class="unit-link">cm</a></div>
+            <div class="form-group"><label>Largo/Prof.:</label><input type="number" id="m-d" value="129" oninput="updateMini3D(); updateFitCalc();"> <a class="unit-link">cm</a></div>
+            <div class="form-group"><label>Alto:</label><input type="number" id="m-h" value="165" oninput="updateMini3D(); updateFitCalc();"> <a class="unit-link">cm</a></div>
+            <div class="form-group"><label>Peso Unit.:</label><input type="number" id="m-weight" value="0" oninput="updateFitCalc()"> <a class="unit-link">kg</a></div>
             <div class="form-group"><label>Color:</label>
                 <div class="color-select-wrapper" id="custom-color-dropdown">
                     <div class="color-select-btn" onclick="toggleColorMenu()"><div class="color-swatch" id="selected-color-swatch" style="background-color: #c5a968;"></div><span id="selected-color-name">Ocre Dorado</span><span style="margin-left:auto; font-size:9px; color:#666;">▼</span></div>
@@ -180,15 +180,15 @@
           </div>
           <div id="mini-3d-preview" style="width: 170px; height: 160px; display:flex; justify-content:center; align-items:center; background: transparent;"></div>
       </div>
-      <div style="border-top: 1px solid #ccc; padding-top: 10px; margin-top: 5px;">
-        <h4 style="margin: 0 0 8px 0; font-size: 11px; font-weight:bold; color: #000;">Handling Restrictions</h4>
-        <div class="checkbox-group"><input type="checkbox" id="m-no-tilt" onchange="updateFitCalc()"><label for="m-no-tilt" style="color:#666;">cannot be tilted</label></div>
-        <div class="checkbox-group"><input type="checkbox" id="m-no-turn" onchange="updateFitCalc()"><label for="m-no-turn" style="color:#666;">cannot be turned</label></div>
-        <div class="checkbox-group"><input type="checkbox" id="m-floor" onchange="updateFitCalc()"><label for="m-floor" style="color:#666;">must stand on floor</label></div>
+      <div style="border-top: 1px solid var(--fluent-border); padding-top: 10px; margin-top: 6px;">
+        <h4 style="margin: 0 0 8px 0; font-size: 11px; font-weight:700;">Restricciones de Manejo</h4>
+        <div class="checkbox-group"><input type="checkbox" id="m-no-tilt" onchange="updateFitCalc()"><label for="m-no-tilt" style="color:var(--fluent-text-secondary);">No se puede inclinar</label></div>
+        <div class="checkbox-group"><input type="checkbox" id="m-no-turn" onchange="updateFitCalc()"><label for="m-no-turn" style="color:var(--fluent-text-secondary);">No rotar horizontalmente</label></div>
+        <div class="checkbox-group"><input type="checkbox" id="m-floor" onchange="updateFitCalc()"><label for="m-floor" style="color:var(--fluent-text-secondary);">Exclusivo de piso (no apilar encima)</label></div>
       </div>
-      <div style="border-top: 1px solid #ccc; padding-top: 10px; margin-top: 5px;" class="checkbox-group"><input type="checkbox" id="m-danger"><label for="m-danger" style="font-weight:bold; color:#000;">Dangerous Goods</label></div>
+      <div style="border-top: 1px solid var(--fluent-border); padding-top: 8px; margin-top: 4px;" class="checkbox-group"><input type="checkbox" id="m-danger"><label for="m-danger" style="font-weight:700; color:var(--fluent-text-primary);">Mercancía Peligrosa (Hazmat/ADR)</label></div>
     </div>
-    <div class="modal-footer"><button class="btn-cancel" onclick="cerrarModalCaja()">Cancel</button><button class="btn-ok" onclick="guardarItem()">OK</button></div>
+    <div class="modal-footer"><button class="btn-cancel" onclick="cerrarModalCaja()">Cancelar</button><button class="btn-ok" onclick="guardarItem()">Guardar</button></div>
   </div>
 
   <script src="viewer3d.js"></script>
