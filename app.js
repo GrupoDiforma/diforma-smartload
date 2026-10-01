@@ -319,7 +319,14 @@ function borrarItemLista() { if(!selectedGroupId) return; listaEmpaque = listaEm
 function actualizarTabla() {
   const tbody = document.getElementById('table-body'); let html = '';
   listaEmpaque.forEach(item => {
-    const isSel = String(item.id) === String(selectedGroupId) ? 'selected' : ''; let icono = item.shape === 'barrel' ? '🛢️' : (item.shape === 'pallet' ? '🪵' : '📦'); if(item.dangerous) icono = '☣️ ' + icono;
+    const isSel = String(item.id) === String(selectedGroupId) ? 'selected' : ''; 
+    let icono = item.shape === 'barrel' ? '🛢️' : (item.shape === 'pallet' ? '🪵' : '📦'); 
+    if(item.dangerous) icono = '☣️ ' + icono;
+    
+    // Indicador visual de elemento con instancias bloqueadas
+    let tieneBloqueados = instanciasCajas.some(inst => String(inst.groupId) === String(item.id) && inst.locked);
+    if (tieneBloqueados) icono = '🔒 ' + icono;
+
     html += `<tr class="${isSel}" data-id="${item.id}" onclick="seleccionarFila('${item.id}')" ondblclick="editarItemLista('${item.id}')"><td><div class="color-box" style="background-color: ${item.color};"></div></td><td style="text-align:right;">${item.qty}</td><td>${icono} ${item.desc}</td><td style="text-align:right;">${item.w}</td><td style="text-align:right;">${item.d}</td><td style="text-align:right;">${item.h}</td><td style="text-align:right;">${item.weight}</td></tr>`;
   }); tbody.innerHTML = html;
 }
@@ -374,6 +381,27 @@ function cambiarContenedorIndividual() {
     } 
 }
 
+function actualizarMetricasGlobales() {
+    contenedoresFisicos.forEach(cont => {
+        let pesoAcc = 0;
+        let volAcc = 0;
+        let lenMax = 0;
+        cont.cajas.forEach(c => {
+            pesoAcc += floatVal(c.weight);
+            volAcc += (floatVal(c.drawW) * floatVal(c.drawH) * floatVal(c.drawD)) / 1000000.0;
+            if (floatVal(c.z) + floatVal(c.drawD) > lenMax) {
+                lenMax = floatVal(c.z) + floatVal(c.drawD);
+            }
+        });
+        cont.pesoActual = pesoAcc;
+        cont.volActual = volAcc;
+        cont.lenUsada = lenMax;
+    });
+    actualizarPanelDerecho();
+}
+
+function floatVal(v) { return parseFloat(v) || 0; }
+
 // CONEXIÓN CON EL BACKEND DE PYTHON
 async function optimizarCarga() {
     let loader = document.getElementById('loading-overlay');
@@ -415,7 +443,7 @@ async function optimizarCarga() {
         }
     } catch (error) {
         console.error("Error conectando con el Backend:", error);
-        alert("No se pudo conectar con el servidor Python en " + BACKEND_URL + "\n\nAsegúrate de que 'app.py' esté corriendo y el puerto 5000 sea de acceso público.");
+        alert("No se pudo conectar con el servidor Python en " + BACKEND_URL + "\n\nAsegúrate de que 'app.py' esté corriendo.");
     } finally {
         if (loader) loader.style.display = 'none';
     }
@@ -442,7 +470,27 @@ function actualizarPanelDerecho() {
   if(is3DInitialized) actualizarRenderCajas(); 
 }
 
-function bloquearSeleccion(lockState) { let changed = false; if (selectedGroupId) { instanciasCajas.forEach(inst => { if (String(inst.groupId) === String(selectedGroupId)) { inst.locked = lockState; changed = true; } }); } else if (selectedMeshUUID) { let inst = instanciasCajas.find(i => i.uuid === selectedMeshUUID); if (inst) { inst.locked = lockState; changed = true; } } if (changed) actualizarRenderCajas(); }
+function bloquearSeleccion(lockState) { 
+    let changed = false; 
+    if (selectedGroupId) { 
+        instanciasCajas.forEach(inst => { 
+            if (String(inst.groupId) === String(selectedGroupId)) { 
+                inst.locked = lockState; 
+                changed = true; 
+            } 
+        }); 
+    } else if (selectedMeshUUID) { 
+        let inst = instanciasCajas.find(i => i.uuid === selectedMeshUUID); 
+        if (inst) { 
+            inst.locked = lockState; 
+            changed = true; 
+        } 
+    } 
+    if (changed) {
+        actualizarTabla();
+        actualizarRenderCajas();
+    }
+}
 
 if ('serviceWorker' in navigator) { navigator.serviceWorker.register('sw.js').catch(console.error); }
 if ('launchQueue' in window) {

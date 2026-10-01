@@ -190,10 +190,27 @@ def calcular_mejor_bloque(sp, ori_w, ori_h, ori_d, available_qty, is_on_floor=Fa
                             b_nx, b_ny = x, y
         return b_nx, b_ny, 1, max_count
 
-def empaquetar(cajas_disponibles, cont):
+def empaquetar(cajas_disponibles, cont, cont_idx=0):
+    spaces = [Space(0, 0, 0, float(cont['w']), float(cont['h']), float(cont['d']))]
+    max_weight = float(cont.get('maxWeight', 9999999))
+    container_width = float(cont['w'])
+
+    # 1. Conservar intactas las cajas bloqueadas que pertenecen a este contenedor
+    cajas_bloqueadas = [c for c in cajas_disponibles if c.get('locked') and c.get('contIdx') == cont_idx]
+    cajas_libres = [c for c in cajas_disponibles if c not in cajas_bloqueadas]
+
+    for b in cajas_bloqueadas:
+        cont['cajas'].append(b)
+        cont['pesoActual'] += float(b.get('weight', 0))
+        spaces = update_spaces_with_ground_support_cap(
+            spaces, float(b['x']), float(b['y']), float(b['z']),
+            float(b['drawW']), float(b['drawH']), float(b['drawD']), cont['cajas']
+        )
+
+    # 2. Organizar cajas libres por grupos y prioridad
     group_map = {}
     group_order = []
-    for c in cajas_disponibles:
+    for c in cajas_libres:
         sig = str(c.get('groupId', c.get('id', '')))
         if sig not in group_map:
             group_map[sig] = {
@@ -208,14 +225,9 @@ def empaquetar(cajas_disponibles, cont):
         group_map[sig]['items'].append(c)
         
     grupos = [group_map[sig] for sig in group_order]
-    
-    spaces = [Space(0, 0, 0, float(cont['w']), float(cont['h']), float(cont['d']))]
-    max_weight = float(cont.get('maxWeight', 9999999))
-    container_width = float(cont['w'])
 
     while any(g['qty'] > 0 for g in grupos) and spaces:
         spaces.sort(key=lambda s: (round(s.z, 2), round(s.y, 2), round(s.x, 2)))
-        
         z_max = max([0.0] + [c['z'] + c['drawD'] for c in cont['cajas']]) if cont['cajas'] else 0.0
         
         gap_candidates = []
@@ -257,7 +269,6 @@ def empaquetar(cajas_disponibles, cont):
                         continue
                         
                     block_vol = count * ori['w'] * ori['h'] * ori['d']
-                    
                     cand = {
                         'space': sp, 'group': g, 'ori': ori,
                         'nx': nx, 'ny': ny, 'nz': nz,
@@ -266,7 +277,6 @@ def empaquetar(cajas_disponibles, cont):
                         'unit_vol': g['unit_vol'], 'is_pallet': g['is_pallet']
                     }
                     
-                    # Gap filling: Encaja dentro de la profundidad Z_max actual
                     if z_max > 0.1 and (sp.z + bd) <= z_max + 0.1:
                         gap_candidates.append(cand)
                     else:
@@ -274,7 +284,6 @@ def empaquetar(cajas_disponibles, cont):
                         
         best_placement = None
         if gap_candidates:
-            # 1. Prioriza Relleno de Huecos Activos (Gap Filling)
             gap_candidates.sort(
                 key=lambda c: (
                     c['is_pallet'],
@@ -287,7 +296,6 @@ def empaquetar(cajas_disponibles, cont):
             )
             best_placement = gap_candidates[0]
         elif depth_candidates:
-            # 2. Extensión de profundidad (Z_max): Prioriza Pallets, Desempate por Volumen Unitario
             depth_candidates.sort(
                 key=lambda c: (
                     c['is_pallet'],
@@ -342,7 +350,7 @@ def empaquetar(cajas_disponibles, cont):
 
 @app.route('/', methods=['GET'])
 def index():
-    return "<h1>✅ SmartLoad Python Backend V13.0</h1><p>Gap Filling, Maximal Spaces y Soporte 75% Activo.</p>"
+    return "<h1>✅ SmartLoad Python Backend V14.0</h1><p>Soporte de Bloqueo Estricto y Control Manual de Carga.</p>"
 
 
 @app.route('/optimizar', methods=['POST', 'OPTIONS'])
@@ -362,13 +370,13 @@ def optimizar_carga():
         remaining = cajas_disponibles
         
         for c in remaining:
-            c['x'] = c['y'] = c['z'] = 0.0
-            c['drawW'] = max(0.1, float(c.get('w', 1)))
-            c['drawH'] = max(0.1, float(c.get('h', 1)))
-            c['drawD'] = max(0.1, float(c.get('d', 1)))
+            if not c.get('locked'):
+                c['x'] = c['y'] = c['z'] = 0.0
+                c['drawW'] = max(0.1, float(c.get('w', 1)))
+                c['drawH'] = max(0.1, float(c.get('h', 1)))
+                c['drawD'] = max(0.1, float(c.get('d', 1)))
         
-        for info in contenedores_info:
-            if len(remaining) == 0: break
+        for idx, info in enumerate(contenedores_info):
             cont_cand = {
                 'tipoKey': info.get('tipoKey', '40ft'),
                 'nombre': info.get('nombre', 'Container'),
@@ -379,11 +387,12 @@ def optimizar_carga():
                 'maxVol': float(info.get('maxVol', 67.5)),
                 'cajas': [], 'pesoActual': 0.0, 'volActual': 0.0, 'lenUsada': 0.0
             }
-            cont_resultado, remaining = empaquetar(remaining, cont_cand)
+            cont_resultado, remaining = empaquetar(remaining, cont_cand, cont_idx=idx)
             resultado_final.append(cont_resultado)
 
         if len(remaining) > 0 and contenedores_info:
             ultimo_info = contenedores_info[-1]
+            idx_extra = len(contenedores_info)
             while len(remaining) > 0:
                 cont_cand = {
                     'tipoKey': ultimo_info.get('tipoKey', '40ft'),
@@ -395,10 +404,11 @@ def optimizar_carga():
                     'maxVol': float(ultimo_info.get('maxVol', 67.5)),
                     'cajas': [], 'pesoActual': 0.0, 'volActual': 0.0, 'lenUsada': 0.0
                 }
-                cont_resultado, remaining = empaquetar(remaining, cont_cand)
+                cont_resultado, remaining = empaquetar(remaining, cont_cand, cont_idx=idx_extra)
                 if len(cont_resultado['cajas']) == 0:
                     break
                 resultado_final.append(cont_resultado)
+                idx_extra += 1
 
         instancias_finales = []
         for idx, cont in enumerate(resultado_final):
