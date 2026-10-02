@@ -131,37 +131,73 @@ function borrarContTipo(key) { delete dbContenedores[key]; updateAllContDropdown
 
 function escapeXML(str) { return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
 
+function determineDirection(item, caja) {
+    let w = item.w, h = item.h, d = item.d;
+    let dw = caja.drawW, dh = caja.drawH, dd = caja.drawD;
+    const eq = (a, b) => Math.abs(a - b) < 0.5;
+
+    if (eq(dw, w) && eq(dh, h) && eq(dd, d)) return 1;
+    if (eq(dw, d) && eq(dh, h) && eq(dd, w)) return 2;
+    if (eq(dw, w) && eq(dh, d) && eq(dd, h)) return 3;
+    if (eq(dw, d) && eq(dh, w) && eq(dd, h)) return 4;
+    if (eq(dw, h) && eq(dh, w) && eq(dd, d)) return 5;
+    if (eq(dw, h) && eq(dh, d) && eq(dd, w)) return 6;
+    return 1;
+}
+
 function generateLoadXML() {
     let xml = '<?xml version="1.0" encoding="UTF-8"?>\n<load xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://www.daubnet.com/ftp/load1.xsd">\n';
+    xml += '<!-- \nThis is a container load file, created by Diforma SmartLoad!\n  -->\n';
+
     contenedoresFisicos.forEach((c, idx) => {
-        xml += `  <container id="c${idx+1}">\n    <width>${Math.round(c.w * 10)}</width>\n    <height>${Math.round(c.h * 10)}</height>\n    <length>${Math.round(c.d * 10)}</length>\n    <maxload>${Math.round(c.maxWeight)}</maxload>\n    <description>Container #${idx+1}</description>\n    <type>${escapeXML(c.nombre || "40' Standard Container")}</type>\n  </container>\n`;
+        xml += `  <container id="c${idx+1}">\n`;
+        xml += `    <width>${Math.round(c.w * 10)}</width>\n`;
+        xml += `    <height>${Math.round(c.h * 10)}</height>\n`;
+        xml += `    <length>${Math.round(c.d * 10)}</length>\n`;
+        xml += `    <maxload>${Math.round(c.maxWeight)}</maxload>\n`;
+        xml += `    <description>Container #${idx+1}</description>\n`;
+        xml += `    <type>${escapeXML(c.nombre || "40' Standard Container")}</type>\n`;
+        xml += `  </container>\n`;
     });
+
     xml += `  <packinglist>\n`;
     listaEmpaque.forEach(item => {
-        xml += `    <packinglistitem>\n      <description>${escapeXML(item.desc || 'Item')}</description>\n      <width>${Math.round(item.w * 10)}</width>\n      <height>${Math.round(item.h * 10)}</height>\n      <depth>${Math.round(item.d * 10)}</depth>\n`;
+        xml += `    <packinglistitem>\n`;
+        xml += `      <description>${escapeXML(item.desc || 'Item')}</description>\n`;
+        xml += `      <width>${Math.round(item.w * 10)}</width>\n`;
+        xml += `      <height>${Math.round(item.h * 10)}</height>\n`;
+        xml += `      <depth>${Math.round(item.d * 10)}</depth>\n`;
         if (item.shape) xml += `      <shape>${item.shape}</shape>\n`;
         if (item.shape === 'pallet') xml += `      <baseheight>150</baseheight>\n`;
-        let colorObj = colorPalette.find(cp => cp.hex === item.color); let colorIdx = colorObj ? colorObj.index : 0;
+        
+        let colorObj = colorPalette.find(cp => cp.hex === item.color);
+        let colorIdx = colorObj ? colorObj.index : 0;
         xml += `      <colorindex>${colorIdx}</colorindex>\n`;
-        if (item.noTilt) xml += `      <notilt/>\n`; if (item.noTurn) xml += `      <noturn/>\n`; if (item.onFloor) xml += `      <floor/>\n`;
+        
+        if (item.noTilt || item.shape === 'pallet') xml += `      <notilt/>\n`;
+        if (item.noTurn || item.shape === 'pallet') xml += `      <noturn/>\n`;
+        if (item.onFloor) xml += `      <floor/>\n`;
+
         contenedoresFisicos.forEach((cont, cIdx) => {
             let cajasDeEsteItem = cont.cajas.filter(c => String(c.groupId) === String(item.id));
             cajasDeEsteItem.forEach(c => {
-                let dir = 1;
-                if (c.drawW === item.w && c.drawH === item.h && c.drawD === item.d) dir = 1;
-                else if (c.drawW === item.d && c.drawH === item.h && c.drawD === item.w) dir = 2;
-                else if (c.drawW === item.w && c.drawH === item.d && c.drawD === item.h) dir = 3;
-                else if (c.drawW === item.d && c.drawH === item.w && c.drawD === item.h) dir = 4;
-                else if (c.drawW === item.h && c.drawH === item.w && c.drawD === item.d) dir = 5;
-                else if (c.drawW === item.h && c.drawH === item.d && c.drawD === item.w) dir = 6;
-                xml += `      <package>\n        <container ref="c${cIdx+1}" />\n        <direction>${dir}</direction>\n        <position-x>${Math.round(c.x * 10)}</position-x>\n        <position-y>${Math.round(c.y * 10)}</position-y>\n        <position-z>${Math.round(c.z * 10)}</position-z>\n      </package>\n`;
+                let dir = determineDirection(item, c);
+                xml += `      <package>\n`;
+                xml += `        <container ref="c${cIdx+1}" />\n`;
+                xml += `        <direction>${dir}</direction>\n`;
+                xml += `        <position-x>${Math.round(c.x * 10)}</position-x>\n`;
+                xml += `        <position-y>${Math.round(c.y * 10)}</position-y>\n`;
+                xml += `        <position-z>${Math.round(c.z * 10)}</position-z>\n`;
+                xml += `      </package>\n`;
             });
         });
         xml += `    </packinglistitem>\n`;
     });
     xml += `  </packinglist>\n`;
+
     let appData = { listaEmpaque, instanciasCajas, contenedoresFisicos: contenedoresFisicos.map(c => c.tipoKey), dbContenedores };
-    xml += `\n  <!-- DiformaSmartLoadData\n${JSON.stringify(appData)}\n  -->\n</load>`; return xml;
+    xml += `\n  <!-- DiformaSmartLoadData\n${JSON.stringify(appData)}\n  -->\n</load>`; 
+    return xml;
 }
 
 async function guardarArchivo(forceSaveAs = false) {
