@@ -1,7 +1,7 @@
 // ==========================================
 // CONFIGURACIÓN DE VERSIÓN Y WEB WORKER LOCAL
 // ==========================================
-const APP_VERSION = "V14.0 Native Worker";
+const APP_VERSION = "V14.1";
 
 let solverWorker = null;
 
