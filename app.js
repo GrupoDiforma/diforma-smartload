@@ -1,11 +1,19 @@
 // ==========================================
-// CONFIGURACIÓN DE VERSIÓN Y BACKEND
+// CONFIGURACIÓN DE VERSIÓN Y WEB WORKER LOCAL
 // ==========================================
-const APP_VERSION = "V14.0";
-const BACKEND_URL = "https://fuzzy-cod-97vpvvj6qp6j2p764-5000.app.github.dev/optimizar";
+const APP_VERSION = "V14.0 Native Worker";
+
+let solverWorker = null;
+
+function getSolverWorker() {
+    if (!solverWorker) {
+        solverWorker = new Worker('solver-worker.js');
+    }
+    return solverWorker;
+}
 
 let currentFileHandle = null; 
-let selectedGroupId = null;  
+let selectedGroupId = null; 
 let listaEmpaque = []; 
 let instanciasCajas = []; 
 let contenedoresFisicos = []; 
@@ -511,8 +519,8 @@ function actualizarMetricasGlobales() {
 
 function floatVal(v) { return parseFloat(v) || 0; }
 
-// CONEXIÓN CON EL BACKEND DE PYTHON
-async function optimizarCarga() {
+// EJECUCIÓN MATEMÁTICA EN WEB WORKER (BACKGROUND THREAD)
+function optimizarCarga() {
     if (listaEmpaque.length === 0) {
         mostrarToast("⚠️ Agrega o carga ítems antes de optimizar.");
         return;
@@ -539,28 +547,28 @@ async function optimizarCarga() {
         }))
     };
 
-    try {
-        const response = await fetch(BACKEND_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
+    const worker = getSolverWorker();
 
-        const data = await response.json();
-        
+    worker.onmessage = function (e) {
+        if (loader) loader.style.display = 'none';
+        const data = e.data;
+
         if (data.status === 'exito') {
             contenedoresFisicos = data.contenedoresFisicos;
             instanciasCajas = data.instanciasCajas;
             actualizarUIContenedores();
         } else {
-            alert("Error en el algoritmo de Python:\n" + data.mensaje);
+            alert("Error en el algoritmo de optimización:\n" + data.mensaje);
         }
-    } catch (error) {
-        console.error("Error conectando con el Backend:", error);
-        alert("No se pudo conectar con el servidor Python en " + BACKEND_URL + "\n\nAsegúrate de que 'app.py' esté corriendo.");
-    } finally {
+    };
+
+    worker.onerror = function (err) {
         if (loader) loader.style.display = 'none';
-    }
+        console.error("Error en Web Worker:", err);
+        alert("Ocurrió un error ejecutando el worker de optimización local.");
+    };
+
+    worker.postMessage(payload);
 }
 
 function actualizarUIContenedores() {
