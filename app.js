@@ -1,7 +1,7 @@
 // ==========================================
 // CONFIGURACIÓN DE VERSIÓN Y WEB WORKER LOCAL
 // ==========================================
-const APP_VERSION = "V14.1";
+const APP_VERSION = "V15.1";
 
 let solverWorker = null;
 
@@ -47,12 +47,123 @@ function mostrarToast(mensaje) {
     }, 3500);
 }
 
+// ==========================================
+// IMPORTACIÓN Y EXPORTACIÓN DE PLANTILLA EXCEL/CSV
+// ==========================================
+function descargarPlantillaCSV() {
+    const headers = "Descripcion;Cantidad;Ancho_cm;Largo_cm;Alto_cm;Peso_kg;Geometria;NoInclinable;NoGirar;ExclusivoPiso;Peligroso\n";
+    const ejemplo1 = "Bandeja Poucher x 10U;100;56;89;40;12;box;SI;NO;NO;NO\n";
+    const ejemplo2 = "Estiba Madera Estandar;10;120;100;165;250;pallet;SI;SI;SI;NO\n";
+    const ejemplo3 = "Tambor Aceite Industrial;5;60;60;90;180;barrel;SI;NO;NO;NO\n";
+    
+    // UTF-8 BOM (\uFEFF) para forzar a Excel a abrirlo directamente en columnas separadas por ;
+    const csvContent = "\uFEFF" + headers + ejemplo1 + ejemplo2 + ejemplo3;
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", "Plantilla_Carga_SmartLoad.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    mostrarToast("📥 Plantilla Excel/CSV descargada.");
+}
+
+function cargarExcelCSV(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const text = e.target.result;
+            const lines = text.split(/\r\n|\n/);
+            if (lines.length < 2) {
+                alert("El archivo CSV no contiene suficientes datos.");
+                return;
+            }
+
+            // Detección automática de delimitador (; o , o TAB)
+            const headerLine = lines[0];
+            let delimiter = ';';
+            if (headerLine.includes(',')) delimiter = ',';
+            if (headerLine.includes('\t')) delimiter = '\t';
+
+            let itemsImportados = 0;
+            for (let i = 1; i < lines.length; i++) {
+                const line = lines[i].trim();
+                if (!line) continue;
+
+                const cols = line.split(delimiter).map(c => c.trim().replace(/^"(.*)"$/, '$1'));
+                if (cols.length < 6) continue;
+
+                const desc = cols[0] || `Item Importado ${i}`;
+                const qty = parseInt(cols[1]) || 1;
+                const w = parseFloat(cols[2]) || 10;
+                const d = parseFloat(cols[3]) || 10;
+                const h = parseFloat(cols[4]) || 10;
+                const weight = parseFloat(cols[5]) || 0;
+                
+                let shape = (cols[6] || 'box').toLowerCase();
+                if (shape.includes('estiba') || shape.includes('pallet')) shape = 'pallet';
+                else if (shape.includes('tambor') || shape.includes('cilindro') || shape.includes('barrel')) shape = 'barrel';
+                else shape = 'box';
+
+                const parseBool = (val) => {
+                    if (!val) return false;
+                    const v = val.toString().toUpperCase().trim();
+                    return v === 'SI' || v === 'S' || v === '1' || v === 'TRUE' || v === 'X';
+                };
+
+                const noTilt = parseBool(cols[7]);
+                const noTurn = parseBool(cols[8]);
+                const onFloor = parseBool(cols[9]);
+                const dangerous = parseBool(cols[10]);
+
+                const colorObj = colorPalette[listaEmpaque.length % colorPalette.length];
+
+                listaEmpaque.push({
+                    id: generateUUID(),
+                    shape: shape,
+                    qty: qty,
+                    desc: desc,
+                    w: w,
+                    d: d,
+                    h: h,
+                    weight: weight,
+                    color: colorObj.hex,
+                    noTilt: noTilt,
+                    noTurn: noTurn,
+                    onFloor: onFloor,
+                    dangerous: dangerous
+                });
+                itemsImportados++;
+            }
+
+            if (itemsImportados > 0) {
+                actualizarTabla();
+                optimizarCarga();
+                mostrarToast(`✅ ${itemsImportados} ítems cargados desde Excel.`);
+            } else {
+                alert("No se pudieron extraer ítems válidos del archivo.");
+            }
+        } catch (err) {
+            console.error(err);
+            alert("Error al procesar el archivo CSV/Excel. Verifica el formato.");
+        }
+        event.target.value = '';
+    };
+    reader.readAsText(file, 'UTF-8');
+}
+
 dragElement(document.getElementById("modal-box")); 
 dragElement(document.getElementById("modal-containers"));
 
 function dragElement(elmnt) {
   let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0; 
-  document.getElementById(elmnt.id + "-header").onmousedown = dragMouseDown;
+  let header = document.getElementById(elmnt.id + "-header");
+  if (header) header.onmousedown = dragMouseDown;
   
   function dragMouseDown(e) { if(e.target.tagName === 'SPAN') return; e.preventDefault(); pos3 = e.clientX; pos4 = e.clientY; document.onmouseup = closeDragElement; document.onmousemove = elementDrag; }
   function elementDrag(e) { e.preventDefault(); pos1 = pos3 - e.clientX; pos2 = pos4 - e.clientY; pos3 = e.clientX; pos4 = e.clientY; elmnt.style.top = (elmnt.offsetTop - pos2) + "px"; elmnt.style.left = (elmnt.offsetLeft - pos1) + "px"; }
@@ -60,7 +171,9 @@ function dragElement(elmnt) {
 }
 
 function initColorMenu() {
-    let menu = document.getElementById('color-menu-items'); menu.innerHTML = '';
+    let menu = document.getElementById('color-menu-items');
+    if (!menu) return;
+    menu.innerHTML = '';
     colorPalette.forEach(c => {
         let div = document.createElement('div'); div.className = 'color-option';
         div.innerHTML = `<div class="color-swatch" style="background-color: ${c.hex};"></div>${c.name}`;
@@ -203,7 +316,7 @@ function generateLoadXML() {
     });
     xml += `  </packinglist>\n`;
 
-    let appData = { listaEmpaque, instanciasCajas, contenedoresFisicos: contenedoresFisicos.map(c => c.tipoKey), dbContenedores };
+    let appData = { appVersion: APP_VERSION, listaEmpaque, instanciasCajas, contenedoresFisicos: contenedoresFisicos.map(c => ({ tipoKey: c.tipoKey, nombre: c.nombre, w: c.w, h: c.h, d: c.d, maxWeight: c.maxWeight, maxVol: c.maxVol })), dbContenedores };
     xml += `\n  <!-- DiformaSmartLoadData\n${JSON.stringify(appData)}\n  -->\n</load>`; 
     return xml;
 }
@@ -267,7 +380,22 @@ function cargarContenidoArchivo(file) {
           instanciasCajas = parsedData.instanciasCajas || []; 
           contenedoresFisicos = [];
           if(parsedData.contenedoresFisicos) { 
-              parsedData.contenedoresFisicos.forEach(tipo => contenedoresFisicos.push(crearContenedor(tipo))); 
+              parsedData.contenedoresFisicos.forEach(c => {
+                  if (typeof c === 'string') {
+                      contenedoresFisicos.push(crearContenedor(c));
+                  } else {
+                      contenedoresFisicos.push({
+                          tipoKey: c.tipoKey || '40ft',
+                          nombre: c.nombre || 'Container',
+                          w: parseFloat(c.w || 233),
+                          h: parseFloat(c.h || 239),
+                          d: parseFloat(c.d || 1201),
+                          maxWeight: parseFloat(c.maxWeight || 26500),
+                          maxVol: parseFloat(c.maxVol || 67.5),
+                          cajas: [], pesoActual: 0, volActual: 0, lenUsada: 0
+                      });
+                  }
+              }); 
           }
           instanciasCajas.forEach(inst => { 
               let tc = contenedoresFisicos[inst.contIdx]; 
@@ -519,10 +647,9 @@ function actualizarMetricasGlobales() {
 
 function floatVal(v) { return parseFloat(v) || 0; }
 
-// EJECUCIÓN MATEMÁTICA EN WEB WORKER (BACKGROUND THREAD)
 function optimizarCarga() {
     if (listaEmpaque.length === 0) {
-        mostrarToast("⚠️ Agrega o carga ítems antes de optimizar.");
+        mostrarToast("⚠️️ Agrega o carga ítems antes de optimizar.");
         return;
     }
 
@@ -628,7 +755,10 @@ if ('launchQueue' in window) {
 }
 
 window.onload = function() { 
-    document.getElementById('app-version-text').innerText = APP_VERSION;
+    const versionEl = document.getElementById('app-version-text');
+    if (versionEl) versionEl.innerText = `${APP_VERSION} Fluent`;
+    document.title = `SmartLoad ${APP_VERSION}`;
+    
     initColorMenu(); 
     updateAllContDropdowns(); 
     limpiarTodo(); 
