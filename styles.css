@@ -104,6 +104,27 @@ body {
   margin-bottom: 2px;
 }
 
+.btn-optimize {
+  background: var(--fluent-accent) !important;
+  color: white !important;
+  font-weight: 700 !important;
+  border-radius: var(--fluent-radius-sm) !important;
+  padding: 6px 12px !important;
+  min-width: 60px !important;
+}
+
+.btn-optimize:hover {
+  background: var(--fluent-accent-hover) !important;
+}
+
+.btn-file-action {
+  flex-direction: row !important;
+  padding: 4px 8px !important;
+  background: var(--fluent-card-solid) !important;
+  border: 1px solid var(--fluent-border) !important;
+  white-space: nowrap !important;
+}
+
 select, input[type="number"], input[type="text"] {
   padding: 5px 8px;
   border: 1px solid var(--fluent-border-strong);
@@ -438,6 +459,28 @@ tr.selected {
   width: 120px;
 }
 
+.fit-calc-container {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 150px;
+}
+
+.link-select {
+  border: 1px solid var(--fluent-border-strong);
+  color: var(--fluent-accent);
+  background: var(--fluent-card-solid);
+  cursor: pointer;
+  font-size: 11px;
+  outline: none;
+  padding: 2px 6px;
+  font-weight: 600;
+  border-radius: var(--fluent-radius-sm);
+  width: 100%;
+  max-width: 180px;
+  margin-top: 2px;
+}
+
 .modal-footer {
   padding: 10px 14px;
   background: var(--fluent-bg);
@@ -543,11 +586,17 @@ tr.selected {
 
 @keyframes spin { to { transform: rotate(360deg); } }
 
-/* ADAPTATIVIDAD TABLET Y MÓVIL CORREGIDA */
+/* ADAPTATIVIDAD TABLET Y MÓVIL */
 @media (max-width: 820px) {
   body {
     height: 100vh;
     overflow-y: auto;
+  }
+
+  .ribbon-group-optimize {
+    order: -1;
+    border-right: 1px solid var(--fluent-border);
+    padding-right: 8px;
   }
 
   #main-area {

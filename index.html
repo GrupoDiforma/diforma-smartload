@@ -37,18 +37,23 @@
   <input type="file" id="file-input" style="display:none;" accept=".json, .load" onchange="cargarArchivoInput(event)">
 
   <div id="ribbon">
+    <div class="ribbon-group ribbon-group-optimize">
+      <div class="btn btn-optimize" onclick="optimizarCarga()"><div class="btn-icon">⚙️</div>Optimizar</div>
+    </div>
+
     <div class="ribbon-group">
       <div class="btn" onclick="limpiarTodo()"><div class="btn-icon">📄</div>Nuevo</div>
       <div class="btn" onclick="abrirArchivo()"><div class="btn-icon">📂</div>Abrir</div>
       <div style="display:flex; flex-direction:column; gap:2px; margin-left:4px;">
         <label style="font-size:10px; color:var(--fluent-text-secondary);">Archivo:</label>
         <div style="display:flex; align-items:center; gap:4px;">
-            <input type="text" id="save-filename" value="MiCargaLoad" style="width:95px;">
-            <div class="btn" style="flex-direction:row; padding:4px 8px; background:var(--fluent-card-solid); border:1px solid var(--fluent-border);" onclick="guardarArchivo(false)">💾 Guardar</div>
-            <div class="btn" style="flex-direction:row; padding:4px 8px; background:var(--fluent-card-solid); border:1px solid var(--fluent-border);" onclick="guardarArchivo(true)">📥 Como</div>
+            <input type="text" id="save-filename" value="MiCargaLoad" style="width:90px;">
+            <div class="btn btn-file-action" onclick="guardarArchivo(false)">💾 Guardar</div>
+            <div class="btn btn-file-action" onclick="guardarArchivo(true)">📥 Guardar Como</div>
         </div>
       </div>
     </div>
+
     <div class="ribbon-group">
       <div class="btn" onclick="abrirModalContainers()"><div class="btn-icon">🗃️</div>Equipos</div>
       <div style="display:flex; flex-direction:column; gap:2px;">
@@ -64,15 +69,14 @@
         </div>
       </div>
     </div>
-    <div class="ribbon-group">
-      <div class="btn" style="background: var(--fluent-accent); color: white; border-radius: var(--fluent-radius-sm);" onclick="optimizarCarga()"><div class="btn-icon">⚙️</div>Optimizar</div>
-    </div>
+
     <div class="ribbon-group">
       <div class="btn" onclick="abrirModalCaja(false)"><div class="btn-icon">➕</div>Agregar</div>
       <div class="btn" onclick="editarItemLista()"><div class="btn-icon">✏️</div>Editar</div>
       <div class="btn" onclick="duplicarItemLista()"><div class="btn-icon">📑</div>Duplicar</div>
       <div class="btn" onclick="borrarItemLista()"><div class="btn-icon">❌</div>Eliminar</div>
     </div>
+
     <div class="ribbon-group">
       <div class="btn" onclick="bloquearSeleccion(true)"><div class="btn-icon">🔒</div>Bloquear</div>
       <div class="btn" onclick="bloquearSeleccion(false)"><div class="btn-icon">🔓</div>Liberar</div>
@@ -151,16 +155,17 @@
     <div class="modal-body">
       <div class="title-gradient">Configurar Item de Carga</div>
       <input type="hidden" id="m-id">
-      <div class="form-group" style="align-items:flex-start;">
+      
+      <!-- Seccion Cantidad & Calculo de Ajuste Limpio -->
+      <div class="form-group" style="align-items: center; margin-bottom: 12px;">
         <label>Cantidad:</label>
-        <div>
-            <input type="number" id="m-qty" class="qty-input-normal" value="10" min="1" oninput="updateFitCalc()" style="width:70px;">
-            <div style="display:inline-block; vertical-align:top; margin-left:8px; font-size:11px;">
-                <span id="fit-text" style="color:var(--fluent-text-secondary);">X ítems caben en</span><br>
-                <select id="m-fit-cont" class="link-select" onchange="updateFitCalc()"></select>
-            </div>
+        <input type="number" id="m-qty" class="qty-input-normal" value="10" min="1" oninput="updateFitCalc()" style="width: 70px; margin-right: 12px; height: 28px;">
+        <div class="fit-calc-container">
+            <span id="fit-text" style="color: var(--fluent-text-secondary); font-size: 11px; white-space: nowrap;">X ítems caben en</span>
+            <select id="m-fit-cont" class="link-select" onchange="updateFitCalc()"></select>
         </div>
       </div>
+
       <div class="form-group" style="border-bottom: 1px solid var(--fluent-border); padding-bottom: 10px; margin-bottom: 10px;">
         <label>Descripción:</label><input type="text" id="m-desc" value="Item Nuevo" style="width: 250px;">
       </div>
