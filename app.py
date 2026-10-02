@@ -195,7 +195,6 @@ def empaquetar(cajas_disponibles, cont, cont_idx=0):
     max_weight = float(cont.get('maxWeight', 9999999))
     container_width = float(cont['w'])
 
-    # 1. Conservar intactas las cajas bloqueadas que pertenecen a este contenedor
     cajas_bloqueadas = [c for c in cajas_disponibles if c.get('locked') and c.get('contIdx') == cont_idx]
     cajas_libres = [c for c in cajas_disponibles if c not in cajas_bloqueadas]
 
@@ -207,7 +206,6 @@ def empaquetar(cajas_disponibles, cont, cont_idx=0):
             float(b['drawW']), float(b['drawH']), float(b['drawD']), cont['cajas']
         )
 
-    # 2. Organizar cajas libres por grupos y prioridad
     group_map = {}
     group_order = []
     for c in cajas_libres:
@@ -350,7 +348,7 @@ def empaquetar(cajas_disponibles, cont, cont_idx=0):
 
 @app.route('/', methods=['GET'])
 def index():
-    return "<h1>✅ SmartLoad Python Backend V14.0</h1><p>Soporte de Bloqueo Estricto y Control Manual de Carga.</p>"
+    return "<h1>✅ SmartLoad Python Backend V14.0</h1><p>Soporte de Bloqueo Estricto y Eliminación de Contenedores Vacíos.</p>"
 
 
 @app.route('/optimizar', methods=['POST', 'OPTIONS'])
@@ -409,6 +407,21 @@ def optimizar_carga():
                     break
                 resultado_final.append(cont_resultado)
                 idx_extra += 1
+
+        # ELIMINAR CONTENEDORES SECUNDARIOS QUE HAYAN QUEDADO VACÍOS
+        resultado_final = [c for c in resultado_final if len(c.get('cajas', [])) > 0]
+        if not resultado_final and contenedores_info:
+            first_info = contenedores_info[0]
+            resultado_final = [{
+                'tipoKey': first_info.get('tipoKey', '40ft'),
+                'nombre': first_info.get('nombre', 'Container'),
+                'w': float(first_info.get('w', 233)),
+                'h': float(first_info.get('h', 239)),
+                'd': float(first_info.get('d', 1201)),
+                'maxWeight': float(first_info.get('maxWeight', 26500)),
+                'maxVol': float(first_info.get('maxVol', 67.5)),
+                'cajas': [], 'pesoActual': 0.0, 'volActual': 0.0, 'lenUsada': 0.0
+            }]
 
         instancias_finales = []
         for idx, cont in enumerate(resultado_final):

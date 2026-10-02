@@ -1,10 +1,11 @@
 // ==========================================
-// RENDERIZADO Y ESCENA THREE.JS CON MULTI-SELECCIÓN (CTRL+CLIC) Y BLOQUEO LIMPIO
+// RENDERIZADO Y ESCENA THREE.JS CON MOVIMIENTO DE ESTIBA INTEGRADO Y TEXTURA DE BLOQUEO
 // ==========================================
 
 let globalMats = null; 
 let solidMaterialsCache = {}; 
 let selectedMaterialsCache = {};
+let lockedMaterialsCache = {};
 
 function initGlobalMats() {
     if (globalMats) return;
@@ -36,6 +37,37 @@ function getSelectedMaterial(baseColorHex) {
     return selectedMaterialsCache[baseColorHex];
 }
 
+function getLockedMaterial(baseColorHex) {
+    if(!lockedMaterialsCache[baseColorHex]) {
+        const canvas = document.createElement('canvas'); 
+        canvas.width = 128; 
+        canvas.height = 128; 
+        const ctx = canvas.getContext('2d');
+        
+        ctx.fillStyle = baseColorHex; 
+        ctx.fillRect(0, 0, 128, 128); 
+        
+        // Franjas de advertencia de bloqueo rojas/oscuras
+        ctx.lineWidth = 16; 
+        ctx.strokeStyle = 'rgba(209, 52, 56, 0.75)'; 
+        ctx.beginPath(); 
+        for(let i = -128; i < 256; i += 32) { 
+            ctx.moveTo(i, 0); 
+            ctx.lineTo(i + 128, 128); 
+        } 
+        ctx.stroke();
+
+        ctx.fillStyle = 'rgba(209, 52, 56, 0.15)';
+        ctx.fillRect(0, 0, 128, 128);
+
+        const tex = new THREE.CanvasTexture(canvas); 
+        tex.wrapS = THREE.RepeatWrapping; 
+        tex.wrapT = THREE.RepeatWrapping;
+        lockedMaterialsCache[baseColorHex] = new THREE.MeshLambertMaterial({ map: tex });
+    } 
+    return lockedMaterialsCache[baseColorHex];
+}
+
 let scene, camera, renderer, controls, transformControls, mainGroup; 
 let miniScene, miniCamera, miniRenderer, miniGroup;
 let raycaster = new THREE.Raycaster(); 
@@ -43,7 +75,6 @@ let mouse = new THREE.Vector2();
 let objectsInteractables = []; 
 let is3DInitialized = false;
 
-// Conjunto para selección múltiple
 let selectedUUIDsSet = new Set();
 
 function init3D() {
@@ -59,7 +90,6 @@ function init3D() {
     controls = new THREE.OrbitControls(camera, renderer.domElement); 
     controls.enableDamping = true; 
     
-    // GIZMO DE TRANSFORMACIÓN Y MOVIMIENTO MANUAL
     transformControls = new THREE.TransformControls(camera, renderer.domElement);
     transformControls.setMode('translate');
     transformControls.setTranslationSnap(1); 
@@ -71,15 +101,14 @@ function init3D() {
 
     transformControls.addEventListener('change', function () {
         if (transformControls.object) {
-            const activeMesh = transformControls.object;
-            const uuid = activeMesh.userData.uuid;
+            const activeGroup = transformControls.object;
+            const uuid = activeGroup.userData.uuid;
             const inst = instanciasCajas.find(i => i.uuid === uuid);
             if (inst) {
-                const offsetX = activeMesh.userData.offsetX || 0;
-                inst.x = Math.round(activeMesh.position.x - inst.drawW / 2 - offsetX);
-                inst.y = Math.round(activeMesh.position.y - inst.drawH / 2);
-                inst.z = Math.round(activeMesh.position.z - inst.drawD / 2);
-                inst.locked = true;
+                const offsetX = activeGroup.userData.offsetX || 0;
+                inst.x = Math.round(activeGroup.position.x - inst.drawW / 2 - offsetX);
+                inst.y = Math.round(activeGroup.position.y - inst.drawH / 2);
+                inst.z = Math.round(activeGroup.position.z - inst.drawD / 2);
                 
                 actualizarMetricasGlobales();
                 actualizarTabla();
@@ -163,10 +192,13 @@ function construirEscena3D() {
         
         if(contenedor.cajas) {
             contenedor.cajas.forEach(caja => {
-                let geo;
+                let cajaGroup = new THREE.Group();
+                cajaGroup.position.set(caja.x + caja.drawW/2 + currentOffsetX, caja.y + caja.drawH/2, caja.z + caja.drawD/2);
+
                 if (caja.shape === 'barrel') { 
                     let isUpright = (caja.drawH === caja.h); 
                     let isXAligned = (caja.drawW === caja.h); 
+                    let geo;
                     if (isUpright) { 
                         let r = Math.min(caja.drawW, caja.drawD) / 2 - 0.5; 
                         geo = new THREE.CylinderGeometry(r, r, caja.drawH - 1, 32); 
@@ -179,6 +211,12 @@ function construirEscena3D() {
                         geo = new THREE.CylinderGeometry(r, r, caja.drawD - 1, 32); 
                         geo.rotateX(Math.PI / 2); 
                     } 
+                    let mesh = new THREE.Mesh(geo, getSolidMaterial(caja.color));
+                    mesh.userData = { isLoadBox: true };
+                    cajaGroup.add(mesh);
+                    let edge = new THREE.LineSegments(new THREE.EdgesGeometry(geo), globalMats.boxEdge);
+                    edge.userData = { isLoadEdge: true };
+                    cajaGroup.add(edge);
                 } 
                 else if (caja.shape === 'pallet') {
                     let palletH = 15; 
@@ -186,40 +224,48 @@ function construirEscena3D() {
                     if (loadH < 1) loadH = 1; 
                     let holesOnDrawW = !(caja.drawW === caja.d && caja.drawD === caja.w && caja.w !== caja.d);
                     
+                    // Cubierta de Madera
                     let deckGeo = new THREE.BoxGeometry(caja.drawW - 1, 3, caja.drawD - 1); 
-                    deckGeo.translate(caja.x + caja.drawW/2 + currentOffsetX, caja.y + 13.5, caja.z + caja.drawD/2); 
-                    mainGroup.add(new THREE.Mesh(deckGeo, getSolidMaterial('#8B5A2B'))); 
-                    mainGroup.add(new THREE.LineSegments(new THREE.EdgesGeometry(deckGeo), globalMats.boxEdge));
+                    deckGeo.translate(0, -caja.drawH/2 + 13.5, 0); 
+                    cajaGroup.add(new THREE.Mesh(deckGeo, getSolidMaterial('#8B5A2B'))); 
+                    cajaGroup.add(new THREE.LineSegments(new THREE.EdgesGeometry(deckGeo), globalMats.boxEdge));
                     
+                    // Patas de la Estiba
                     let sw = holesOnDrawW ? Math.min(12, caja.drawW * 0.15) : (caja.drawW - 1); 
                     let sd = holesOnDrawW ? (caja.drawD - 1) : Math.min(12, caja.drawD * 0.15);
-                    
                     for(let i=0; i<3; i++) { 
                         let sGeo = new THREE.BoxGeometry(sw, 12, sd); 
-                        let px = caja.drawW / 2; 
-                        let pz = caja.drawD / 2; 
-                        if (holesOnDrawW) { if(i===0) px = 0.5 + sw/2; if(i===2) px = caja.drawW - 0.5 - sw/2; } 
-                        else { if(i===0) pz = 0.5 + sd/2; if(i===2) pz = caja.drawD - 0.5 - sd/2; } 
-                        sGeo.translate(caja.x + px + currentOffsetX, caja.y + 6, caja.z + pz); 
-                        mainGroup.add(new THREE.Mesh(sGeo, getSolidMaterial('#8B5A2B'))); 
-                        mainGroup.add(new THREE.LineSegments(new THREE.EdgesGeometry(sGeo), globalMats.boxEdge)); 
+                        let px = 0; 
+                        let pz = 0; 
+                        if (holesOnDrawW) { if(i===0) px = -caja.drawW/2 + sw/2 + 0.5; if(i===2) px = caja.drawW/2 - sw/2 - 0.5; } 
+                        else { if(i===0) pz = -caja.drawD/2 + sd/2 + 0.5; if(i===2) pz = caja.drawD/2 - sd/2 - 0.5; } 
+                        sGeo.translate(px, -caja.drawH/2 + 6, pz); 
+                        cajaGroup.add(new THREE.Mesh(sGeo, getSolidMaterial('#8B5A2B'))); 
+                        cajaGroup.add(new THREE.LineSegments(new THREE.EdgesGeometry(sGeo), globalMats.boxEdge)); 
                     }
                     
-                    geo = new THREE.BoxGeometry(caja.drawW - 1, loadH - 0.5, caja.drawD - 1); 
+                    // Carga Útil sobre la Estiba
+                    let loadGeo = new THREE.BoxGeometry(caja.drawW - 1, loadH - 0.5, caja.drawD - 1); 
+                    loadGeo.translate(0, -caja.drawH/2 + palletH + loadH/2, 0);
+                    let loadMesh = new THREE.Mesh(loadGeo, getSolidMaterial(caja.color));
+                    loadMesh.userData = { isLoadBox: true };
+                    cajaGroup.add(loadMesh);
+                    let loadEdge = new THREE.LineSegments(new THREE.EdgesGeometry(loadGeo), globalMats.boxEdge);
+                    loadEdge.userData = { isLoadEdge: true };
+                    cajaGroup.add(loadEdge);
                 } else { 
-                    geo = new THREE.BoxGeometry(caja.drawW - 1, caja.drawH - 1, caja.drawD - 1); 
+                    let geo = new THREE.BoxGeometry(caja.drawW - 1, caja.drawH - 1, caja.drawD - 1); 
+                    let mesh = new THREE.Mesh(geo, getSolidMaterial(caja.color));
+                    mesh.userData = { isLoadBox: true };
+                    cajaGroup.add(mesh);
+                    let edge = new THREE.LineSegments(new THREE.EdgesGeometry(geo), globalMats.boxEdge);
+                    edge.userData = { isLoadEdge: true };
+                    cajaGroup.add(edge);
                 }
                 
-                const mesh = new THREE.Mesh(geo, getSolidMaterial(caja.color)); 
-                mesh.position.set(caja.x + caja.drawW/2 + currentOffsetX, caja.y + caja.drawH/2, caja.z + caja.drawD/2);
-                mesh.userData = { uuid: caja.uuid, groupId: caja.groupId, color: caja.color, locked: caja.locked, offsetX: currentOffsetX }; 
-                mainGroup.add(mesh); 
-                objectsInteractables.push(mesh); 
-                
-                const edges = new THREE.LineSegments(new THREE.EdgesGeometry(geo), globalMats.boxEdge); 
-                edges.position.copy(mesh.position);
-                edges.userData = { isEdge: true, parentUUID: caja.uuid }; 
-                mainGroup.add(edges);
+                cajaGroup.userData = { uuid: caja.uuid, groupId: caja.groupId, color: caja.color, locked: caja.locked, offsetX: currentOffsetX, isCajaGroup: true }; 
+                mainGroup.add(cajaGroup); 
+                objectsInteractables.push(cajaGroup); 
             });
         } 
         currentOffsetX -= (contenedor.w + gapX); 
@@ -232,27 +278,35 @@ function actualizarRenderCajas() {
     let primarySelectedMesh = null;
 
     mainGroup.children.forEach(obj => {
-        if(obj.userData.uuid) { 
-            let isSelected = selectedUUIDsSet.has(obj.userData.uuid) || (selectedGroupId && String(obj.userData.groupId) === String(selectedGroupId)); 
-            
-            if (isSelected) {
-                obj.material = getSelectedMaterial(obj.userData.color);
-                if (!primarySelectedMesh) primarySelectedMesh = obj;
-            } else {
-                obj.material = getSolidMaterial(obj.userData.color);
-            }
-        }
-        if(obj.userData.isEdge) { 
-            let inst = instanciasCajas.find(i => i.uuid === obj.userData.parentUUID);
-            let isSelected = selectedUUIDsSet.has(obj.userData.parentUUID) || (selectedGroupId && String(inst?.groupId) === String(selectedGroupId)); 
+        if(obj.userData.isCajaGroup) { 
+            let uuid = obj.userData.uuid;
+            let inst = instanciasCajas.find(i => i.uuid === uuid);
+            let isSelected = selectedUUIDsSet.has(uuid) || (selectedGroupId && String(obj.userData.groupId) === String(selectedGroupId)); 
             let isLocked = inst ? inst.locked : false;
 
-            if (isSelected) {
-                obj.material = globalMats.boxEdgeSel;
-            } else if (isLocked) {
-                obj.material = globalMats.boxEdgeLocked;
-            } else {
-                obj.material = globalMats.boxEdge;
+            obj.children.forEach(child => {
+                if (child.userData.isLoadBox) {
+                    if (isLocked) {
+                        child.material = getLockedMaterial(obj.userData.color);
+                    } else if (isSelected) {
+                        child.material = getSelectedMaterial(obj.userData.color);
+                    } else {
+                        child.material = getSolidMaterial(obj.userData.color);
+                    }
+                }
+                if (child.userData.isLoadEdge) {
+                    if (isSelected) {
+                        child.material = globalMats.boxEdgeSel;
+                    } else if (isLocked) {
+                        child.material = globalMats.boxEdgeLocked;
+                    } else {
+                        child.material = globalMats.boxEdge;
+                    }
+                }
+            });
+
+            if (isSelected && !primarySelectedMesh) {
+                primarySelectedMesh = obj;
             }
         }
         if(obj.userData.isContainer) { 
@@ -277,28 +331,34 @@ function onMouseClick(event) {
     mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1; 
     
     raycaster.setFromCamera(mouse, camera); 
-    const intersects = raycaster.intersectObjects(objectsInteractables);
+    const intersects = raycaster.intersectObjects(objectsInteractables, true);
     
     const isMultiSelect = event.ctrlKey || event.metaKey;
 
     if (intersects.length > 0) { 
-        let clickedUUID = intersects[0].object.userData.uuid; 
+        let topGroup = intersects[0].object;
+        while (topGroup.parent && topGroup.parent !== mainGroup) {
+            topGroup = topGroup.parent;
+        }
+        let clickedUUID = topGroup.userData.uuid; 
 
-        if (isMultiSelect) {
-            if (selectedUUIDsSet.has(clickedUUID)) {
-                selectedUUIDsSet.delete(clickedUUID);
+        if (clickedUUID) {
+            if (isMultiSelect) {
+                if (selectedUUIDsSet.has(clickedUUID)) {
+                    selectedUUIDsSet.delete(clickedUUID);
+                } else {
+                    selectedUUIDsSet.add(clickedUUID);
+                }
+                selectedGroupId = null;
             } else {
-                selectedUUIDsSet.add(clickedUUID);
+                if (selectedUUIDsSet.has(clickedUUID) && selectedUUIDsSet.size === 1) {
+                    selectedUUIDsSet.clear();
+                } else {
+                    selectedUUIDsSet.clear();
+                    selectedUUIDsSet.add(clickedUUID);
+                }
+                selectedGroupId = null;
             }
-            selectedGroupId = null;
-        } else {
-            if (selectedUUIDsSet.has(clickedUUID) && selectedUUIDsSet.size === 1) {
-                selectedUUIDsSet.clear();
-            } else {
-                selectedUUIDsSet.clear();
-                selectedUUIDsSet.add(clickedUUID);
-            }
-            selectedGroupId = null;
         }
     } else { 
         if (!isMultiSelect) {

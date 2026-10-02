@@ -329,7 +329,7 @@ function actualizarTabla() {
   const tbody = document.getElementById('table-body'); let html = '';
   listaEmpaque.forEach(item => {
     const isSel = String(item.id) === String(selectedGroupId) ? 'selected' : ''; 
-    let icono = item.shape === 'barrel' ? '🛢️️' : (item.shape === 'pallet' ? '🪵' : '📦'); 
+    let icono = item.shape === 'barrel' ? '🛢️' : (item.shape === 'pallet' ? '🪵' : '📦'); 
     if(item.dangerous) icono = '☣️ ' + icono;
     
     let tieneBloqueados = instanciasCajas.some(inst => String(inst.groupId) === String(item.id) && inst.locked);
@@ -412,6 +412,11 @@ function floatVal(v) { return parseFloat(v) || 0; }
 
 // CONEXIÓN CON EL BACKEND DE PYTHON
 async function optimizarCarga() {
+    if (listaEmpaque.length === 0) {
+        mostrarToast("⚠️ Agrega o carga ítems antes de optimizar.");
+        return;
+    }
+
     let loader = document.getElementById('loading-overlay');
     if (loader) loader.style.display = 'flex';
 
@@ -458,6 +463,7 @@ async function optimizarCarga() {
 }
 
 function actualizarUIContenedores() {
+  contenedoresFisicos = contenedoresFisicos.filter((c, idx) => idx === 0 || c.cajas.length > 0);
   const select = document.getElementById('view-cont-select'); select.innerHTML = '<option value="">-- Ver Todos (Info Global) --</option>'; 
   if(contenedoresFisicos.length === 0) { document.getElementById('change-type-div').style.display = 'none'; } else { contenedoresFisicos.forEach((c, idx) => { select.innerHTML += `<option value="${idx}">Contenedor #${idx+1} (${c.nombre})</option>`; }); document.getElementById('change-type-div').style.display = 'flex'; }
   actualizarPanelDerecho(); construirEscena3D(); 
