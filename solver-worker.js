@@ -1,6 +1,5 @@
 // ==========================================
-// SMARTLOAD V14.0 - MATH PACKING ENGINE WORKER
-// Traducido e integrado a JS Nativo (Background Thread)
+// SMARTLOAD V14.1 - MATH PACKING ENGINE (INTRA & CROSS-SKU OPTIMIZATION)
 // ==========================================
 
 class Space {
@@ -322,17 +321,45 @@ function empaquetar(cajasDisponibles, cont, contIdx = 0) {
                     let bh = ny * ori.h;
                     let bd = nz * ori.d;
 
-                    if ((bd / Math.max(0.1, bw)) > 2.5 && bw < containerWidth * 0.4) continue;
-
                     if (!esSoporteValido(sp.x, sp.y, sp.z, bw, bd, cont.cajas)) continue;
 
+                    // COMPLEMENTO TRANSVERSAL INTRA-SKU E INTER-SKU
+                    let remW = sp.w - bw;
+                    let bestComplementW = 0;
+
+                    if (remW > 0.1) {
+                        for (let g2 of grupos) {
+                            if (g2.qty <= 0) continue;
+                            // Evaluamos si el mismo grupo tiene unidades adicionales para la pareja rotada
+                            if (g2 === g && g2.qty <= count) continue;
+                            
+                            let caja2 = g2.sample;
+                            if (caja2.onFloor && sp.y > 0.1) continue;
+                            let oris2 = obtenerRotaciones(caja2);
+                            for (let ori2 of oris2) {
+                                if (ori2.w <= remW + 0.01 && ori2.h <= sp.h + 0.01 && ori2.d <= sp.d + 0.01) {
+                                    if (ori2.w > bestComplementW) {
+                                        bestComplementW = ori2.w;
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    let effectiveWidth = bw + bestComplementW;
+                    let widthFillRatio = (effectiveWidth / containerWidth);
                     let blockVol = count * ori.w * ori.h * ori.d;
+                    let spaceVol = sp.w * sp.h * sp.d;
+                    let volumetricEfficiency = spaceVol > 0 ? (blockVol / spaceVol) : 0;
+
                     let cand = {
                         space: sp, group: g, ori: ori,
                         nx: nx, ny: ny, nz: nz,
                         bw: bw, bh: bh, bd: bd,
                         count: count, block_vol: blockVol,
-                        unit_vol: g.unit_vol, is_pallet: g.is_pallet
+                        unit_vol: g.unit_vol, is_pallet: g.is_pallet,
+                        widthFillRatio: widthFillRatio,
+                        volumetricEfficiency: volumetricEfficiency
                     };
 
                     if (zMax > 0.1 && (sp.z + bd) <= zMax + 0.1) {
@@ -344,37 +371,19 @@ function empaquetar(cajasDisponibles, cont, contIdx = 0) {
             }
         }
 
+        const scoreCandidate = (c) => {
+            let widthScore = c.widthFillRatio * 10000;
+            let volScore = c.volumetricEfficiency * 100;
+            let palletBonus = c.is_pallet * 10;
+            return widthScore + volScore + palletBonus;
+        };
+
         let bestPlacement = null;
         if (gapCandidates.length > 0) {
-            gapCandidates.sort((a, b) => {
-                if (b.is_pallet !== a.is_pallet) return b.is_pallet - a.is_pallet;
-                if (b.block_vol !== a.block_vol) return b.block_vol - a.block_vol;
-                let az = Math.round(a.space.z * 100) / 100;
-                let bz = Math.round(b.space.z * 100) / 100;
-                if (az !== bz) return az - bz;
-                let ay = Math.round(a.space.y * 100) / 100;
-                let by = Math.round(b.space.y * 100) / 100;
-                if (ay !== by) return ay - by;
-                let ax = Math.round(a.space.x * 100) / 100;
-                let bx = Math.round(b.space.x * 100) / 100;
-                return ax - bx;
-            });
+            gapCandidates.sort((a, b) => scoreCandidate(b) - scoreCandidate(a));
             bestPlacement = gapCandidates[0];
         } else if (depthCandidates.length > 0) {
-            depthCandidates.sort((a, b) => {
-                if (b.is_pallet !== a.is_pallet) return b.is_pallet - a.is_pallet;
-                if (b.unit_vol !== a.unit_vol) return b.unit_vol - a.unit_vol;
-                if (b.block_vol !== a.block_vol) return b.block_vol - a.block_vol;
-                let az = Math.round(a.space.z * 100) / 100;
-                let bz = Math.round(b.space.z * 100) / 100;
-                if (az !== bz) return az - bz;
-                let ay = Math.round(a.space.y * 100) / 100;
-                let by = Math.round(b.space.y * 100) / 100;
-                if (ay !== by) return ay - by;
-                let ax = Math.round(a.space.x * 100) / 100;
-                let bx = Math.round(b.space.x * 100) / 100;
-                return ax - bx;
-            });
+            depthCandidates.sort((a, b) => scoreCandidate(b) - scoreCandidate(a));
             bestPlacement = depthCandidates[0];
         }
 
