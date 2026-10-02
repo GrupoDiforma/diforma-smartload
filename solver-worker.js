@@ -1,5 +1,5 @@
 // ==========================================
-// SMARTLOAD V14.5 - MATH PACKING ENGINE WORKER (TWO-PHASE CONSTRAINT-FIRST OPTIMIZATION)
+// SMARTLOAD V15.1 - MULTI-STRATEGY SEARCH WORKER (STRICT INDIVIDUAL CONTAINER RESPECT)
 // ==========================================
 
 class Space {
@@ -112,6 +112,8 @@ function updateSpacesWithGroundSupportCap(spaces, b_x, b_y, b_z, b_w, b_h, b_d, 
                 } else {
                     cappedSpaces.push(sp);
                 }
+            } else {
+                cappedSpaces.push(sp);
             }
         } else {
             cappedSpaces.push(sp);
@@ -238,7 +240,7 @@ function calcularMejorBloque(sp, oriW, oriH, oriD, availableQty, isOnFloor = fal
     }
 }
 
-function empaquetar(cajasDisponibles, cont, contIdx = 0) {
+function empaquetarUnContenedor(cajasDisponibles, cont, contIdx, st) {
     let spaces = [new Space(0, 0, 0, parseFloat(cont.w), parseFloat(cont.h), parseFloat(cont.d))];
     let maxWeight = parseFloat(cont.maxWeight || 9999999);
     let containerWidth = parseFloat(cont.w);
@@ -246,6 +248,11 @@ function empaquetar(cajasDisponibles, cont, contIdx = 0) {
 
     let cajasBloqueadas = cajasDisponibles.filter(c => c.locked && c.contIdx === contIdx);
     let cajasLibres = cajasDisponibles.filter(c => !cajasBloqueadas.includes(c));
+
+    cont.cajas = [];
+    cont.pesoActual = 0;
+    cont.volActual = 0;
+    cont.lenUsada = 0;
 
     for (let b of cajasBloqueadas) {
         cont.cajas.push(b);
@@ -261,14 +268,19 @@ function empaquetar(cajasDisponibles, cont, contIdx = 0) {
     for (let c of cajasLibres) {
         let sig = String(c.groupId !== undefined ? c.groupId : (c.id !== undefined ? c.id : ''));
         if (!groupMap[sig]) {
-            let isRestricted = !!(c.noTilt || c.noTurn || c.onFloor || c.shape === 'pallet');
+            let unitVol = parseFloat(c.w || 1) * parseFloat(c.h || 1) * parseFloat(c.d || 1);
+            let itemH = parseFloat(c.h || 1);
+            
+            let isSmallItem = (st.smallVolThreshold > 0) && (unitVol < st.smallVolThreshold || itemH < 25);
+            let isRestricted = (c.shape === 'pallet' || c.onFloor) || (!isSmallItem && (c.noTilt || c.noTurn));
+
             groupMap[sig] = {
                 sample: c,
                 qty: 0,
                 items: [],
                 is_restricted: isRestricted,
                 is_pallet: (c.shape === 'pallet' || c.onFloor) ? 1 : 0,
-                unit_vol: parseFloat(c.w || 1) * parseFloat(c.h || 1) * parseFloat(c.d || 1)
+                unit_vol: unitVol
             };
             groupOrder.push(sig);
         }
@@ -278,7 +290,12 @@ function empaquetar(cajasDisponibles, cont, contIdx = 0) {
 
     let grupos = groupOrder.map(sig => groupMap[sig]);
 
-    // EJECUCIÓN EN DOS FASES (FASE 1: RESTRINGIDOS PRIMERO | FASE 2: FLEXIBLES DESPUÉS)
+    if (st.sortGroupsBy === 'vol_desc') {
+        grupos.sort((a, b) => b.unit_vol - a.unit_vol);
+    } else if (st.sortGroupsBy === 'qty_desc') {
+        grupos.sort((a, b) => b.qty - a.qty);
+    }
+
     for (let fase = 1; fase <= 2; fase++) {
         while (spaces.length > 0) {
             let gruposElegibles = grupos.filter(g => g.qty > 0 && (fase === 2 || g.is_restricted));
@@ -326,7 +343,6 @@ function empaquetar(cajasDisponibles, cont, contIdx = 0) {
 
                         if (!esSoporteValido(sp.x, sp.y, sp.z, bw, bd, cont.cajas)) continue;
 
-                        // EVALUACIÓN DE COMPLEMENTO TRANSVERSAL (X)
                         let remW = sp.w - bw;
                         let bestComplementW = 0;
                         if (remW > 0.1) {
@@ -375,11 +391,12 @@ function empaquetar(cajasDisponibles, cont, contIdx = 0) {
             }
 
             const scoreCandidate = (c) => {
-                let widthScore = c.widthFillRatio * 10000;
-                let heightScore = c.heightFillRatio * 3000;
-                let volScore = c.volumetricEfficiency * 1000;
-                let palletBonus = c.is_pallet * 2000;
-                return widthScore + heightScore + volScore + palletBonus;
+                let widthScore = c.widthFillRatio * st.wWidth;
+                let heightScore = c.heightFillRatio * st.wHeight;
+                let volScore = c.volumetricEfficiency * st.wVol;
+                let countScore = c.count * st.wCount;
+                let palletBonus = c.is_pallet * st.wPallet;
+                return widthScore + heightScore + volScore + countScore + palletBonus;
             };
 
             let bestPlacement = null;
@@ -429,12 +446,113 @@ function empaquetar(cajasDisponibles, cont, contIdx = 0) {
 
     let unpacked = [];
     for (let g of grupos) {
-        if (g.items.length > 0) {
-            unpacked.push(...g.items);
-        }
+        if (g.items.length > 0) unpacked.push(...g.items);
     }
 
     return [cont, unpacked];
+}
+
+function empaquetarConEstrategia(cajasInput, contenedoresInput, st) {
+    let contenedoresFisicosLocal = JSON.parse(JSON.stringify(contenedoresInput));
+    let cajasLocal = JSON.parse(JSON.stringify(cajasInput));
+
+    let resultadoFinal = [];
+    let remaining = cajasLocal;
+
+    // Respetar estrictamente la lista de contenedores definidos manualmente por el usuario
+    for (let idx = 0; idx < contenedoresFisicosLocal.length; idx++) {
+        let info = contenedoresFisicosLocal[idx];
+        let contCand = {
+            tipoKey: info.tipoKey,
+            nombre: info.nombre,
+            w: parseFloat(info.w),
+            h: parseFloat(info.h),
+            d: parseFloat(info.d),
+            maxWeight: parseFloat(info.maxWeight),
+            maxVol: parseFloat(info.maxVol),
+            cajas: [], pesoActual: 0.0, volActual: 0.0, lenUsada: 0.0
+        };
+
+        let [contResultado, rem] = empaquetarUnContenedor(remaining, contCand, idx, st);
+        remaining = rem;
+        resultadoFinal.push(contResultado);
+        if (remaining.length === 0) break;
+    }
+
+    // Rebosamiento (Overflow): Si queda mercancía sobrante, crear contenedores adicionales basados en el último tipo de contenedor
+    if (remaining.length > 0 && contenedoresFisicosLocal.length > 0) {
+        let ultimoInfo = contenedoresFisicosLocal[contenedoresFisicosLocal.length - 1];
+        let idxExtra = contenedoresFisicosLocal.length;
+        while (remaining.length > 0) {
+            let contCand = {
+                tipoKey: ultimoInfo.tipoKey,
+                nombre: ultimoInfo.nombre,
+                w: parseFloat(ultimoInfo.w),
+                h: parseFloat(ultimoInfo.h),
+                d: parseFloat(ultimoInfo.d),
+                maxWeight: parseFloat(ultimoInfo.maxWeight),
+                maxVol: parseFloat(ultimoInfo.maxVol),
+                cajas: [], pesoActual: 0.0, volActual: 0.0, lenUsada: 0.0
+            };
+            let [contResultado, rem] = empaquetarUnContenedor(remaining, contCand, idxExtra, st);
+            remaining = rem;
+            if (contResultado.cajas.length === 0) break;
+            resultadoFinal.push(contResultado);
+            idxExtra++;
+        }
+    }
+
+    let instanciasFinales = [];
+    for (let idx = 0; idx < resultadoFinal.length; idx++) {
+        let c = resultadoFinal[idx];
+        for (let item of c.cajas) {
+            item.contIdx = idx;
+            instanciasFinales.push(item);
+        }
+    }
+    for (let item of remaining) {
+        item.contIdx = -1;
+        instanciasFinales.push(item);
+    }
+
+    return {
+        contenedoresFisicos: resultadoFinal,
+        instanciasCajas: instanciasFinales
+    };
+}
+
+function ejecutarBusquedaMultiPaso(cajasDisponibles, contenedoresInfo) {
+    const estrategias = [
+        { id: 1, name: "Balanceado Adaptativo", wWidth: 10000, wHeight: 4000, wVol: 5000, wCount: 10, wPallet: 3000, smallVolThreshold: 30000, sortGroupsBy: 'default' },
+        { id: 2, name: "Volumen Descendente", wWidth: 8000, wHeight: 4000, wVol: 8000, wCount: 5, wPallet: 3000, smallVolThreshold: 20000, sortGroupsBy: 'vol_desc' },
+        { id: 3, name: "Restricción Rígida Pura", wWidth: 10000, wHeight: 3000, wVol: 3000, wCount: 10, wPallet: 2000, smallVolThreshold: 0, sortGroupsBy: 'default' },
+        { id: 4, name: "Prioridad Cantidad Alta", wWidth: 9000, wHeight: 5000, wVol: 6000, wCount: 50, wPallet: 3000, smallVolThreshold: 40000, sortGroupsBy: 'qty_desc' },
+        { id: 5, name: "Llenado Transversal Máximo", wWidth: 16000, wHeight: 3000, wVol: 4000, wCount: 10, wPallet: 3000, smallVolThreshold: 30000, sortGroupsBy: 'default' },
+        { id: 6, name: "Pared Vertical Y Fondo", wWidth: 8000, wHeight: 8000, wVol: 6000, wCount: 10, wPallet: 3000, smallVolThreshold: 25000, sortGroupsBy: 'vol_desc' },
+        { id: 7, name: "Densidad Cúbica Estricta", wWidth: 6000, wHeight: 4000, wVol: 12000, wCount: 5, wPallet: 4000, smallVolThreshold: 35000, sortGroupsBy: 'default' },
+        { id: 8, name: "Micro-Relleno Agresivo", wWidth: 12000, wHeight: 6000, wVol: 7000, wCount: 20, wPallet: 2000, smallVolThreshold: 60000, sortGroupsBy: 'qty_desc' }
+    ];
+
+    let mejorResultado = null;
+    let mejorPuntaje = Infinity;
+
+    for (let st of estrategias) {
+        let res = empaquetarConEstrategia(cajasDisponibles, contenedoresInfo, st);
+        
+        let unpackedCount = res.instanciasCajas.filter(c => c.contIdx === -1).length;
+        let contsUsados = res.contenedoresFisicos.length;
+        let lenTotal = res.contenedoresFisicos.reduce((acc, c) => acc + c.lenUsada, 0);
+        let volTotal = res.contenedoresFisicos.reduce((acc, c) => acc + c.volActual, 0);
+
+        let penalizacion = (unpackedCount * 10000000) + (contsUsados * 1000000) + (lenTotal * 10) - (volTotal * 100);
+
+        if (penalizacion < mejorPuntaje) {
+            mejorPuntaje = penalizacion;
+            mejorResultado = res;
+        }
+    }
+
+    return mejorResultado;
 }
 
 self.onmessage = function (e) {
@@ -448,89 +566,13 @@ self.onmessage = function (e) {
             return;
         }
 
-        let resultadoFinal = [];
-        let remaining = cajasDisponibles;
+        let mejor = ejecutarBusquedaMultiPaso(cajasDisponibles, contenedoresInfo);
 
-        for (let c of remaining) {
-            if (!c.locked) {
-                c.x = c.y = c.z = 0.0;
-                c.drawW = Math.max(0.1, parseFloat(c.w || 1));
-                c.drawH = Math.max(0.1, parseFloat(c.h || 1));
-                c.drawD = Math.max(0.1, parseFloat(c.d || 1));
-            }
-        }
-
-        for (let idx = 0; idx < contenedoresInfo.length; idx++) {
-            let info = contenedoresInfo[idx];
-            let contCand = {
-                tipoKey: info.tipoKey || '40ft',
-                nombre: info.nombre || 'Container',
-                w: parseFloat(info.w || 233),
-                h: parseFloat(info.h || 239),
-                d: parseFloat(info.d || 1201),
-                maxWeight: parseFloat(info.maxWeight || 26500),
-                maxVol: parseFloat(info.maxVol || 67.5),
-                cajas: [], pesoActual: 0.0, volActual: 0.0, lenUsada: 0.0
-            };
-            let [contResultado, rem] = empaquetar(remaining, contCand, idx);
-            remaining = rem;
-            resultadoFinal.push(contResultado);
-        }
-
-        if (remaining.length > 0 && contenedoresInfo.length > 0) {
-            let ultimoInfo = contenedoresInfo[contenedoresInfo.length - 1];
-            let idxExtra = contenedoresInfo.length;
-            while (remaining.length > 0) {
-                let contCand = {
-                    tipoKey: ultimoInfo.tipoKey || '40ft',
-                    nombre: ultimoInfo.nombre || 'Container',
-                    w: parseFloat(ultimoInfo.w || 233),
-                    h: parseFloat(ultimoInfo.h || 239),
-                    d: parseFloat(ultimoInfo.d || 1201),
-                    maxWeight: parseFloat(ultimoInfo.maxWeight || 26500),
-                    maxVol: parseFloat(ultimoInfo.maxVol || 67.5),
-                    cajas: [], pesoActual: 0.0, volActual: 0.0, lenUsada: 0.0
-                };
-                let [contResultado, rem] = empaquetar(remaining, contCand, idxExtra);
-                remaining = rem;
-                if (contResultado.cajas.length === 0) {
-                    break;
-                }
-                resultadoFinal.push(contResultado);
-                idxExtra++;
-            }
-        }
-
-        resultadoFinal = resultadoFinal.filter(c => c.cajas.length > 0);
-        if (resultadoFinal.length === 0 && contenedoresInfo.length > 0) {
-            let firstInfo = contenedoresInfo[0];
-            resultadoFinal = [{
-                tipoKey: firstInfo.tipoKey || '40ft',
-                nombre: firstInfo.nombre || 'Container',
-                w: parseFloat(firstInfo.w || 233),
-                h: parseFloat(firstInfo.h || 239),
-                d: parseFloat(firstInfo.d || 1201),
-                maxWeight: parseFloat(firstInfo.maxWeight || 26500),
-                maxVol: parseFloat(firstInfo.maxVol || 67.5),
-                cajas: [], pesoActual: 0.0, volActual: 0.0, lenUsada: 0.0
-            }];
-        }
-
-        let instanciasFinales = [];
-        for (let idx = 0; idx < resultadoFinal.length; idx++) {
-            let cont = resultadoFinal[idx];
-            for (let c of cont.cajas) {
-                c.contIdx = idx;
-                instanciasFinales.push(c);
-            }
-        }
-
-        for (let c of remaining) {
-            c.contIdx = -1;
-            instanciasFinales.push(c);
-        }
-
-        self.postMessage({ status: 'exito', contenedoresFisicos: resultadoFinal, instanciasCajas: instanciasFinales });
+        self.postMessage({
+            status: 'exito',
+            contenedoresFisicos: mejor.contenedoresFisicos,
+            instanciasCajas: mejor.instanciasCajas
+        });
     } catch (err) {
         self.postMessage({ status: 'error', mensaje: 'Error matemático:\n' + err.message + '\n' + err.stack });
     }
