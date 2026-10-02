@@ -216,46 +216,111 @@ function cargarContenidoArchivo(file) {
     try {
       let fileContent = e.target.result;
       if (fileContent.includes("<!-- DiformaSmartLoadData")) {
-          let jsonStr = fileContent.split("<!-- DiformaSmartLoadData")[1].split("-->")[0].trim(); let parsedData = JSON.parse(jsonStr);
+          let jsonStr = fileContent.split("<!-- DiformaSmartLoadData")[1].split("-->")[0].trim(); 
+          let parsedData = JSON.parse(jsonStr);
           if(parsedData.dbContenedores) { dbContenedores = parsedData.dbContenedores; updateAllContDropdowns(); }
-          listaEmpaque = parsedData.listaEmpaque || []; instanciasCajas = parsedData.instanciasCajas || []; contenedoresFisicos = [];
-          if(parsedData.contenedoresFisicos) { parsedData.contenedoresFisicos.forEach(tipo => contenedoresFisicos.push(crearContenedor(tipo))); }
-          instanciasCajas.forEach(inst => { let tc = contenedoresFisicos[inst.contIdx]; if(tc) { tc.cajas.push(inst); tc.pesoActual += inst.weight || 0; tc.volActual += (inst.drawW * inst.drawH * inst.drawD) / 1000000; if (inst.z + inst.drawD > tc.lenUsada) tc.lenUsada = inst.z + inst.drawD; } });
-      } else if (fileContent.trim().startsWith("<?xml") || fileContent.trim().startsWith("<load")) {
-          const parser = new DOMParser(); const xmlDoc = parser.parseFromString(fileContent, "text/xml");
-          let contNodes = xmlDoc.getElementsByTagName("container"); contenedoresFisicos = []; let contIdMap = {}; 
-          Array.from(contNodes).forEach((cNode, index) => {
-              let cId = cNode.getAttribute("id"); let cTypeStr = cNode.getElementsByTagName("type")[0]?.textContent || "";
-              let tipoKey = '40ft'; let str = cTypeStr.toLowerCase(); if (str.includes("high cube") || str.includes("hc")) tipoKey = '40hc'; else if (str.includes("20")) tipoKey = '20ft'; else if (str.includes("40")) tipoKey = '40ft';
-              let xmlW = parseInt(cNode.getElementsByTagName("width")[0]?.textContent || 0) / 10; let xmlH = parseInt(cNode.getElementsByTagName("height")[0]?.textContent || 0) / 10; let xmlD = parseInt(cNode.getElementsByTagName("length")[0]?.textContent || 0) / 10; let xmlMaxWgt = parseInt(cNode.getElementsByTagName("maxload")[0]?.textContent || 0);
-              let cont = crearContenedor(tipoKey); cont.nombre = cTypeStr || cont.nombre; 
-              if (xmlW > 0) cont.w = xmlW; if (xmlH > 0) cont.h = xmlH; if (xmlD > 0) cont.d = xmlD; if (xmlMaxWgt > 0) cont.maxWeight = xmlMaxWgt;
-              cont.maxVol = (cont.w * cont.h * cont.d) / 1000000; contenedoresFisicos.push(cont); contIdMap[cId] = index;
+          listaEmpaque = parsedData.listaEmpaque || []; 
+          instanciasCajas = parsedData.instanciasCajas || []; 
+          contenedoresFisicos = [];
+          if(parsedData.contenedoresFisicos) { 
+              parsedData.contenedoresFisicos.forEach(tipo => contenedoresFisicos.push(crearContenedor(tipo))); 
+          }
+          instanciasCajas.forEach(inst => { 
+              let tc = contenedoresFisicos[inst.contIdx]; 
+              if(tc) { 
+                  tc.cajas.push(inst); 
+                  tc.pesoActual += inst.weight || 0; 
+                  tc.volActual += (inst.drawW * inst.drawH * inst.drawD) / 1000000; 
+                  if (inst.z + inst.drawD > tc.lenUsada) tc.lenUsada = inst.z + inst.drawD; 
+              } 
           });
-          const itemNodes = xmlDoc.getElementsByTagName("packinglistitem"); listaEmpaque = []; instanciasCajas = [];
+      } else if (fileContent.trim().startsWith("<?xml") || fileContent.trim().startsWith("<load")) {
+          const parser = new DOMParser(); 
+          const xmlDoc = parser.parseFromString(fileContent, "text/xml");
+          let contNodes = xmlDoc.getElementsByTagName("container"); 
+          contenedoresFisicos = []; 
+          let contIdMap = {}; 
+          Array.from(contNodes).forEach((cNode, index) => {
+              let cId = cNode.getAttribute("id"); 
+              let cTypeStr = cNode.getElementsByTagName("type")[0]?.textContent || "";
+              let tipoKey = '40ft'; 
+              let str = cTypeStr.toLowerCase(); 
+              if (str.includes("high cube") || str.includes("hc")) tipoKey = '40hc'; 
+              else if (str.includes("20")) tipoKey = '20ft'; 
+              else if (str.includes("40")) tipoKey = '40ft';
+              
+              let xmlW = parseInt(cNode.getElementsByTagName("width")[0]?.textContent || 0) / 10; 
+              let xmlH = parseInt(cNode.getElementsByTagName("height")[0]?.textContent || 0) / 10; 
+              let xmlD = parseInt(cNode.getElementsByTagName("length")[0]?.textContent || 0) / 10; 
+              let xmlMaxWgt = parseInt(cNode.getElementsByTagName("maxload")[0]?.textContent || 0);
+              
+              let cont = crearContenedor(tipoKey); 
+              cont.nombre = cTypeStr || cont.nombre; 
+              if (xmlW > 0) cont.w = xmlW; 
+              if (xmlH > 0) cont.h = xmlH; 
+              if (xmlD > 0) cont.d = xmlD; 
+              if (xmlMaxWgt > 0) cont.maxWeight = xmlMaxWgt;
+              cont.maxVol = (cont.w * cont.h * cont.d) / 1000000; 
+              contenedoresFisicos.push(cont); 
+              contIdMap[cId] = index;
+          });
+          const itemNodes = xmlDoc.getElementsByTagName("packinglistitem"); 
+          listaEmpaque = []; 
+          instanciasCajas = [];
           Array.from(itemNodes).forEach(node => {
-              let desc = node.getElementsByTagName("description")[0]?.textContent || "Item Load!"; let w = parseInt(node.getElementsByTagName("width")[0]?.textContent || 0) / 10; let h = parseInt(node.getElementsByTagName("height")[0]?.textContent || 0) / 10; let d = parseInt(node.getElementsByTagName("depth")[0]?.textContent || 0) / 10; let shape = node.getElementsByTagName("shape")[0]?.textContent || "box";
-              let colorIdx = parseInt(node.getElementsByTagName("colorindex")[0]?.textContent || 0); let colorObj = colorPalette.find(c => c.index === colorIdx) || colorPalette[0];
-              let noTilt = node.getElementsByTagName("notilt").length > 0; let noTurn = node.getElementsByTagName("noturn").length > 0; let floor = node.getElementsByTagName("floor").length > 0;
-              let packages = node.getElementsByTagName("package"); let qty = packages.length > 0 ? packages.length : 1; let itemId = generateUUID();
+              let desc = node.getElementsByTagName("description")[0]?.textContent || "Item Load!"; 
+              let w = parseInt(node.getElementsByTagName("width")[0]?.textContent || 0) / 10; 
+              let h = parseInt(node.getElementsByTagName("height")[0]?.textContent || 0) / 10; 
+              let d = parseInt(node.getElementsByTagName("depth")[0]?.textContent || 0) / 10; 
+              let shape = node.getElementsByTagName("shape")[0]?.textContent || "box";
+              let colorIdx = parseInt(node.getElementsByTagName("colorindex")[0]?.textContent || 0); 
+              let colorObj = colorPalette.find(c => c.index === colorIdx) || colorPalette[0];
+              let noTilt = node.getElementsByTagName("notilt").length > 0; 
+              let noTurn = node.getElementsByTagName("noturn").length > 0; 
+              let floor = node.getElementsByTagName("floor").length > 0;
+              let packages = node.getElementsByTagName("package"); 
+              let qty = packages.length > 0 ? packages.length : 1; 
+              let itemId = generateUUID();
               listaEmpaque.push({ id: itemId, shape: shape, qty: qty, desc: desc, w: w, d: d, h: h, weight: 0, color: colorObj.hex, noTilt: noTilt, noTurn: noTurn, onFloor: floor, dangerous: false });
               if (packages.length > 0) {
                   Array.from(packages).forEach(pkg => {
-                      let cRef = pkg.getElementsByTagName("container")[0]?.getAttribute("ref"); let dir = parseInt(pkg.getElementsByTagName("direction")[0]?.textContent || 1); let posX = parseInt(pkg.getElementsByTagName("position-x")[0]?.textContent || 0) / 10; let posY = parseInt(pkg.getElementsByTagName("position-y")[0]?.textContent || 0) / 10; let posZ = parseInt(pkg.getElementsByTagName("position-z")[0]?.textContent || 0) / 10;
-                      let drawW = w, drawH = h, drawD = d; if (dir === 2) { drawW = d; drawH = h; drawD = w; } else if (dir === 3) { drawW = w; drawH = d; drawD = h; } else if (dir === 4) { drawW = d; drawH = w; drawD = h; } else if (dir === 5) { drawW = h; drawH = w; drawD = d; } else if (dir === 6) { drawW = h; drawH = d; drawD = w; }
+                      let cRef = pkg.getElementsByTagName("container")[0]?.getAttribute("ref"); 
+                      let dir = parseInt(pkg.getElementsByTagName("direction")[0]?.textContent || 1); 
+                      let posX = parseInt(pkg.getElementsByTagName("position-x")[0]?.textContent || 0) / 10; 
+                      let posY = parseInt(pkg.getElementsByTagName("position-y")[0]?.textContent || 0) / 10; 
+                      let posZ = parseInt(pkg.getElementsByTagName("position-z")[0]?.textContent || 0) / 10;
+                      let drawW = w, drawH = h, drawD = d; 
+                      if (dir === 2) { drawW = d; drawH = h; drawD = w; } 
+                      else if (dir === 3) { drawW = w; drawH = d; drawD = h; } 
+                      else if (dir === 4) { drawW = d; drawH = w; drawD = h; } 
+                      else if (dir === 5) { drawW = h; drawH = w; drawD = d; } 
+                      else if (dir === 6) { drawW = h; drawH = d; drawD = w; }
                       let contIdx = contIdMap[cRef] !== undefined ? contIdMap[cRef] : 0;
                       let inst = { uuid: generateUUID(), groupId: itemId, shape: shape, w: w, h: h, d: d, drawW: drawW, drawH: drawH, drawD: drawD, x: posX, y: posY, z: posZ, weight: 0, color: colorObj.hex, locked: false, contIdx: contIdx };
                       instanciasCajas.push(inst);
-                      let targetCont = contenedoresFisicos[contIdx]; if(targetCont) { targetCont.cajas.push(inst); targetCont.pesoActual += inst.weight; targetCont.volActual += (inst.drawW * inst.drawH * inst.drawD) / 1000000; if (inst.z + inst.drawD > targetCont.lenUsada) targetCont.lenUsada = inst.z + inst.drawD; }
+                      let targetCont = contenedoresFisicos[contIdx]; 
+                      if(targetCont) { 
+                          targetCont.cajas.push(inst); 
+                          targetCont.pesoActual += inst.weight; 
+                          targetCont.volActual += (inst.drawW * inst.drawH * inst.drawD) / 1000000; 
+                          if (inst.z + inst.drawD > targetCont.lenUsada) targetCont.lenUsada = inst.z + inst.drawD; 
+                      }
                   });
               }
           });
       }
       contenedoresFisicos = contenedoresFisicos.filter(c => c.cajas.length > 0);
-      if (contenedoresFisicos.length === 0) { let defaultType = document.getElementById('ribbon-cont-type').value || '40ft'; contenedoresFisicos.push(crearContenedor(defaultType)); }
-      document.getElementById('save-filename').value = file.name.replace(/\.[^/.]+$/, ""); document.getElementById('file-input').value = ''; 
-      if(contenedoresFisicos.length > 0) { document.getElementById('ribbon-cont-type').value = contenedoresFisicos[0].tipoKey; }
-      actualizarTabla(); actualizarUIContenedores();
+      if (contenedoresFisicos.length === 0) { 
+          let defaultType = document.getElementById('ribbon-cont-type').value || '40ft'; 
+          contenedoresFisicos.push(crearContenedor(defaultType)); 
+      }
+      document.getElementById('save-filename').value = file.name.replace(/\.[^/.]+$/, ""); 
+      document.getElementById('file-input').value = ''; 
+      if(contenedoresFisicos.length > 0) { 
+          document.getElementById('ribbon-cont-type').value = contenedoresFisicos[0].tipoKey; 
+      }
+      actualizarTabla(); 
+      optimizarCarga(); 
     } catch(err) { alert("Error leyendo archivo. Asegúrate de que el formato sea válido."); console.error(err); }
   }; reader.readAsText(file);
 }
