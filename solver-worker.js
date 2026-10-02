@@ -1,5 +1,5 @@
 // ==========================================
-// SMARTLOAD V14.1 - MATH PACKING ENGINE (INTRA & CROSS-SKU OPTIMIZATION)
+// SMARTLOAD V14.5 - MATH PACKING ENGINE WORKER (TWO-PHASE CONSTRAINT-FIRST OPTIMIZATION)
 // ==========================================
 
 class Space {
@@ -198,9 +198,6 @@ function esSoporteValido(px, py, pz, bw, bd, cajasColocadas) {
 
     if ((areaSoportada / areaTotal) < 0.75) return false;
 
-    let maxSuppZ = Math.max(...overlappingSupp.map(c => c.z + c.drawD));
-    if (pz + bd > maxSuppZ + 0.5) return false;
-
     return true;
 }
 
@@ -245,6 +242,7 @@ function empaquetar(cajasDisponibles, cont, contIdx = 0) {
     let spaces = [new Space(0, 0, 0, parseFloat(cont.w), parseFloat(cont.h), parseFloat(cont.d))];
     let maxWeight = parseFloat(cont.maxWeight || 9999999);
     let containerWidth = parseFloat(cont.w);
+    let containerHeight = parseFloat(cont.h);
 
     let cajasBloqueadas = cajasDisponibles.filter(c => c.locked && c.contIdx === contIdx);
     let cajasLibres = cajasDisponibles.filter(c => !cajasBloqueadas.includes(c));
@@ -263,10 +261,12 @@ function empaquetar(cajasDisponibles, cont, contIdx = 0) {
     for (let c of cajasLibres) {
         let sig = String(c.groupId !== undefined ? c.groupId : (c.id !== undefined ? c.id : ''));
         if (!groupMap[sig]) {
+            let isRestricted = !!(c.noTilt || c.noTurn || c.onFloor || c.shape === 'pallet');
             groupMap[sig] = {
                 sample: c,
                 qty: 0,
                 items: [],
+                is_restricted: isRestricted,
                 is_pallet: (c.shape === 'pallet' || c.onFloor) ? 1 : 0,
                 unit_vol: parseFloat(c.w || 1) * parseFloat(c.h || 1) * parseFloat(c.d || 1)
             };
@@ -278,144 +278,149 @@ function empaquetar(cajasDisponibles, cont, contIdx = 0) {
 
     let grupos = groupOrder.map(sig => groupMap[sig]);
 
-    while (grupos.some(g => g.qty > 0) && spaces.length > 0) {
-        spaces.sort((a, b) => {
-            let az = Math.round(a.z * 100) / 100;
-            let bz = Math.round(b.z * 100) / 100;
-            if (az !== bz) return az - bz;
-            let ay = Math.round(a.y * 100) / 100;
-            let by = Math.round(b.y * 100) / 100;
-            if (ay !== by) return ay - by;
-            let ax = Math.round(a.x * 100) / 100;
-            let bx = Math.round(b.x * 100) / 100;
-            return ax - bx;
-        });
+    // EJECUCIÓN EN DOS FASES (FASE 1: RESTRINGIDOS PRIMERO | FASE 2: FLEXIBLES DESPUÉS)
+    for (let fase = 1; fase <= 2; fase++) {
+        while (spaces.length > 0) {
+            let gruposElegibles = grupos.filter(g => g.qty > 0 && (fase === 2 || g.is_restricted));
+            if (gruposElegibles.length === 0) break;
 
-        let zMax = cont.cajas.length > 0 ? Math.max(0.0, ...cont.cajas.map(c => c.z + c.drawD)) : 0.0;
+            spaces.sort((a, b) => {
+                let az = Math.round(a.z * 100) / 100;
+                let bz = Math.round(b.z * 100) / 100;
+                if (az !== bz) return az - bz;
+                let ay = Math.round(a.y * 100) / 100;
+                let by = Math.round(b.y * 100) / 100;
+                if (ay !== by) return ay - by;
+                let ax = Math.round(a.x * 100) / 100;
+                let bx = Math.round(b.x * 100) / 100;
+                return ax - bx;
+            });
 
-        let gapCandidates = [];
-        let depthCandidates = [];
+            let zMax = cont.cajas.length > 0 ? Math.max(0.0, ...cont.cajas.map(c => c.z + c.drawD)) : 0.0;
+            let gapCandidates = [];
+            let depthCandidates = [];
 
-        for (let sp of spaces) {
-            for (let g of grupos) {
-                if (g.qty <= 0) continue;
-                let caja = g.sample;
-                if (caja.onFloor && sp.y > 0.1) continue;
+            for (let sp of spaces) {
+                for (let g of gruposElegibles) {
+                    let caja = g.sample;
+                    if (caja.onFloor && sp.y > 0.1) continue;
 
-                let pesoCaja = parseFloat(caja.weight || 0);
-                let availableQty = g.qty;
-                if (pesoCaja > 0) {
-                    let maxWgtQty = Math.floor((maxWeight - cont.pesoActual) / pesoCaja);
-                    availableQty = Math.min(availableQty, maxWgtQty);
-                }
-                if (availableQty <= 0) continue;
+                    let pesoCaja = parseFloat(caja.weight || 0);
+                    let availableQty = g.qty;
+                    if (pesoCaja > 0) {
+                        let maxWgtQty = Math.floor((maxWeight - cont.pesoActual) / pesoCaja);
+                        availableQty = Math.min(availableQty, maxWgtQty);
+                    }
+                    if (availableQty <= 0) continue;
 
-                let oris = obtenerRotaciones(caja);
-                for (let ori of oris) {
-                    if (ori.w > sp.w + 0.01 || ori.h > sp.h + 0.01 || ori.d > sp.d + 0.01) continue;
+                    let oris = obtenerRotaciones(caja);
+                    for (let ori of oris) {
+                        if (ori.w > sp.w + 0.01 || ori.h > sp.h + 0.01 || ori.d > sp.d + 0.01) continue;
 
-                    let [nx, ny, nz, count] = calcularMejorBloque(sp, ori.w, ori.h, ori.d, availableQty, caja.onFloor);
-                    if (count <= 0) continue;
+                        let [nx, ny, nz, count] = calcularMejorBloque(sp, ori.w, ori.h, ori.d, availableQty, caja.onFloor);
+                        if (count <= 0) continue;
 
-                    let bw = nx * ori.w;
-                    let bh = ny * ori.h;
-                    let bd = nz * ori.d;
+                        let bw = nx * ori.w;
+                        let bh = ny * ori.h;
+                        let bd = nz * ori.d;
 
-                    if (!esSoporteValido(sp.x, sp.y, sp.z, bw, bd, cont.cajas)) continue;
+                        if (!esSoporteValido(sp.x, sp.y, sp.z, bw, bd, cont.cajas)) continue;
 
-                    // COMPLEMENTO TRANSVERSAL INTRA-SKU E INTER-SKU
-                    let remW = sp.w - bw;
-                    let bestComplementW = 0;
-
-                    if (remW > 0.1) {
-                        for (let g2 of grupos) {
-                            if (g2.qty <= 0) continue;
-                            // Evaluamos si el mismo grupo tiene unidades adicionales para la pareja rotada
-                            if (g2 === g && g2.qty <= count) continue;
-                            
-                            let caja2 = g2.sample;
-                            if (caja2.onFloor && sp.y > 0.1) continue;
-                            let oris2 = obtenerRotaciones(caja2);
-                            for (let ori2 of oris2) {
-                                if (ori2.w <= remW + 0.01 && ori2.h <= sp.h + 0.01 && ori2.d <= sp.d + 0.01) {
-                                    if (ori2.w > bestComplementW) {
-                                        bestComplementW = ori2.w;
+                        // EVALUACIÓN DE COMPLEMENTO TRANSVERSAL (X)
+                        let remW = sp.w - bw;
+                        let bestComplementW = 0;
+                        if (remW > 0.1) {
+                            for (let g2 of gruposElegibles) {
+                                if (g2.qty <= 0) continue;
+                                if (g2 === g && g2.qty <= count) continue;
+                                
+                                let caja2 = g2.sample;
+                                if (caja2.onFloor && sp.y > 0.1) continue;
+                                let oris2 = obtenerRotaciones(caja2);
+                                for (let ori2 of oris2) {
+                                    if (ori2.w <= remW + 0.01 && ori2.h <= sp.h + 0.01 && ori2.d <= sp.d + 0.01) {
+                                        if (ori2.w > bestComplementW) {
+                                            bestComplementW = ori2.w;
+                                        }
                                     }
                                 }
                             }
                         }
-                    }
 
-                    let effectiveWidth = bw + bestComplementW;
-                    let widthFillRatio = (effectiveWidth / containerWidth);
-                    let blockVol = count * ori.w * ori.h * ori.d;
-                    let spaceVol = sp.w * sp.h * sp.d;
-                    let volumetricEfficiency = spaceVol > 0 ? (blockVol / spaceVol) : 0;
+                        let effectiveWidth = bw + bestComplementW;
+                        let widthFillRatio = (effectiveWidth / containerWidth);
+                        let heightFillRatio = ((sp.y + bh) / containerHeight);
+                        let blockVol = count * ori.w * ori.h * ori.d;
+                        let spaceVol = sp.w * sp.h * sp.d;
+                        let volumetricEfficiency = spaceVol > 0 ? (blockVol / spaceVol) : 0;
 
-                    let cand = {
-                        space: sp, group: g, ori: ori,
-                        nx: nx, ny: ny, nz: nz,
-                        bw: bw, bh: bh, bd: bd,
-                        count: count, block_vol: blockVol,
-                        unit_vol: g.unit_vol, is_pallet: g.is_pallet,
-                        widthFillRatio: widthFillRatio,
-                        volumetricEfficiency: volumetricEfficiency
-                    };
+                        let cand = {
+                            space: sp, group: g, ori: ori,
+                            nx: nx, ny: ny, nz: nz,
+                            bw: bw, bh: bh, bd: bd,
+                            count: count, block_vol: blockVol,
+                            unit_vol: g.unit_vol, is_pallet: g.is_pallet,
+                            widthFillRatio: widthFillRatio,
+                            heightFillRatio: heightFillRatio,
+                            volumetricEfficiency: volumetricEfficiency
+                        };
 
-                    if (zMax > 0.1 && (sp.z + bd) <= zMax + 0.1) {
-                        gapCandidates.push(cand);
-                    } else {
-                        depthCandidates.push(cand);
-                    }
-                }
-            }
-        }
-
-        const scoreCandidate = (c) => {
-            let widthScore = c.widthFillRatio * 10000;
-            let volScore = c.volumetricEfficiency * 100;
-            let palletBonus = c.is_pallet * 10;
-            return widthScore + volScore + palletBonus;
-        };
-
-        let bestPlacement = null;
-        if (gapCandidates.length > 0) {
-            gapCandidates.sort((a, b) => scoreCandidate(b) - scoreCandidate(a));
-            bestPlacement = gapCandidates[0];
-        } else if (depthCandidates.length > 0) {
-            depthCandidates.sort((a, b) => scoreCandidate(b) - scoreCandidate(a));
-            bestPlacement = depthCandidates[0];
-        }
-
-        if (bestPlacement) {
-            let sp = bestPlacement.space;
-            let g = bestPlacement.group;
-            let ori = bestPlacement.ori;
-            let { nx, ny, nz, bw, bh, bd } = bestPlacement;
-
-            for (let iz = 0; iz < nz; iz++) {
-                for (let iy = 0; iy < ny; iy++) {
-                    for (let ix = 0; ix < nx; ix++) {
-                        let inst = g.items.pop();
-                        inst.x = Math.round((sp.x + ix * ori.w) * 100) / 100;
-                        inst.y = Math.round((sp.y + iy * ori.h) * 100) / 100;
-                        inst.z = Math.round((sp.z + iz * ori.d) * 100) / 100;
-                        inst.drawW = ori.w;
-                        inst.drawH = ori.h;
-                        inst.drawD = ori.d;
-
-                        cont.cajas.push(inst);
-                        cont.pesoActual += parseFloat(inst.weight || 0);
+                        if (zMax > 0.1 && (sp.z + bd) <= zMax + 0.1) {
+                            gapCandidates.push(cand);
+                        } else {
+                            depthCandidates.push(cand);
+                        }
                     }
                 }
             }
 
-            g.qty -= bestPlacement.count;
-            spaces = updateSpacesWithGroundSupportCap(
-                spaces, sp.x, sp.y, sp.z, bw, bh, bd, cont.cajas
-            );
-        } else {
-            break;
+            const scoreCandidate = (c) => {
+                let widthScore = c.widthFillRatio * 10000;
+                let heightScore = c.heightFillRatio * 3000;
+                let volScore = c.volumetricEfficiency * 1000;
+                let palletBonus = c.is_pallet * 2000;
+                return widthScore + heightScore + volScore + palletBonus;
+            };
+
+            let bestPlacement = null;
+            if (gapCandidates.length > 0) {
+                gapCandidates.sort((a, b) => scoreCandidate(b) - scoreCandidate(a));
+                bestPlacement = gapCandidates[0];
+            } else if (depthCandidates.length > 0) {
+                depthCandidates.sort((a, b) => scoreCandidate(b) - scoreCandidate(a));
+                bestPlacement = depthCandidates[0];
+            }
+
+            if (bestPlacement) {
+                let sp = bestPlacement.space;
+                let g = bestPlacement.group;
+                let ori = bestPlacement.ori;
+                let { nx, ny, nz, bw, bh, bd } = bestPlacement;
+
+                for (let iz = 0; iz < nz; iz++) {
+                    for (let iy = 0; iy < ny; iy++) {
+                        for (let ix = 0; ix < nx; ix++) {
+                            let inst = g.items.pop();
+                            inst.x = Math.round((sp.x + ix * ori.w) * 100) / 100;
+                            inst.y = Math.round((sp.y + iy * ori.h) * 100) / 100;
+                            inst.z = Math.round((sp.z + iz * ori.d) * 100) / 100;
+                            inst.drawW = ori.w;
+                            inst.drawH = ori.h;
+                            inst.drawD = ori.d;
+
+                            cont.cajas.push(inst);
+                            cont.pesoActual += parseFloat(inst.weight || 0);
+                        }
+                    }
+                }
+
+                g.qty -= bestPlacement.count;
+                spaces = updateSpacesWithGroundSupportCap(
+                    spaces, sp.x, sp.y, sp.z, bw, bh, bd, cont.cajas
+                );
+            } else {
+                break;
+            }
         }
     }
 
