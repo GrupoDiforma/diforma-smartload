@@ -89,7 +89,17 @@
   </div>
 
   <div id="main-area">
-    <div id="canvas-container"></div>
+    <div id="canvas-container">
+      <!-- Widget de Vistas Rápidas 3D -->
+      <div id="view-cube-widget">
+        <button class="view-btn" onclick="setCameraView('iso')" title="Vista Isométrica 3D">🧊 Angle</button>
+        <button class="view-btn" onclick="setCameraView('top')" title="Vista Superior (Planta)">🔝 Top</button>
+        <button class="view-btn" onclick="setCameraView('front')" title="Vista Frontal (Puertas)">⏹️ Front</button>
+        <button class="view-btn" onclick="setCameraView('left')" title="Vista Lateral Izquierda">◀️ Left</button>
+        <button class="view-btn" onclick="setCameraView('right')" title="Vista Lateral Derecha">▶️ Right</button>
+      </div>
+    </div>
+
     <div id="container-selector-panel">
       <span>Vista y Métricas por Contenedor:</span>
       <select id="view-cont-select" onchange="actualizarPanelDerecho()"></select>
@@ -156,7 +166,6 @@
       <div class="title-gradient">Configurar Item de Carga</div>
       <input type="hidden" id="m-id">
       
-      <!-- Seccion Cantidad & Calculo de Ajuste Limpio -->
       <div class="form-group" style="align-items: center; margin-bottom: 12px;">
         <label>Cantidad:</label>
         <input type="number" id="m-qty" class="qty-input-normal" value="10" min="1" oninput="updateFitCalc()" style="width: 70px; margin-right: 12px; height: 28px;">

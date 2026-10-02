@@ -193,6 +193,48 @@ select:focus, input[type="number"]:focus, input[type="text"]:focus {
   min-height: 220px;
 }
 
+/* WIDGET DE VISTAS RÁPIDAS 3D FLOTANTE */
+#view-cube-widget {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  background: var(--fluent-card-bg);
+  backdrop-filter: blur(16px);
+  padding: 4px 6px;
+  border-radius: var(--fluent-radius-md);
+  border: 1px solid var(--fluent-border);
+  box-shadow: var(--fluent-shadow);
+  z-index: 10;
+  display: flex;
+  gap: 4px;
+}
+
+.view-btn {
+  background: var(--fluent-card-solid);
+  border: 1px solid var(--fluent-border-strong);
+  border-radius: var(--fluent-radius-sm);
+  padding: 5px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--fluent-text-primary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.view-btn:hover {
+  background: rgba(0, 103, 192, 0.08);
+  border-color: var(--fluent-accent);
+  color: var(--fluent-accent);
+}
+
+.view-btn:active {
+  transform: scale(0.96);
+}
+
 #container-selector-panel {
   position: absolute;
   top: 12px;
@@ -597,6 +639,12 @@ tr.selected {
     order: -1;
     border-right: 1px solid var(--fluent-border);
     padding-right: 8px;
+  }
+
+  #view-cube-widget {
+    top: auto;
+    bottom: 12px;
+    right: 12px;
   }
 
   #main-area {

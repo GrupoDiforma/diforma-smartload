@@ -1,5 +1,5 @@
 // ==========================================
-// RENDERIZADO Y ESCENA THREE.JS CON MOVIMIENTO DE ESTIBA INTEGRADO Y TEXTURA DE BLOQUEO
+// RENDERIZADO Y ESCENA THREE.JS CON VISTAS RÁPIDAS
 // ==========================================
 
 let globalMats = null; 
@@ -47,7 +47,6 @@ function getLockedMaterial(baseColorHex) {
         ctx.fillStyle = baseColorHex; 
         ctx.fillRect(0, 0, 128, 128); 
         
-        // Franjas de advertencia de bloqueo rojas/oscuras
         ctx.lineWidth = 16; 
         ctx.strokeStyle = 'rgba(209, 52, 56, 0.75)'; 
         ctx.beginPath(); 
@@ -76,6 +75,7 @@ let objectsInteractables = [];
 let is3DInitialized = false;
 
 let selectedUUIDsSet = new Set();
+let currentSceneBounds = { centerX: 0, maxH: 250, maxD: 1200 };
 
 function init3D() {
     if(is3DInitialized) return; 
@@ -173,6 +173,8 @@ function construirEscena3D() {
     });
     
     let centerX = -(totalWidth - gapX) / 2; 
+    currentSceneBounds = { centerX, maxH, maxD };
+
     camera.position.set(centerX + maxD * 0.9, maxH * 2.2, maxD * 1.2); 
     controls.target.set(centerX, maxH / 2, maxD / 2);
     controls.update();
@@ -224,13 +226,11 @@ function construirEscena3D() {
                     if (loadH < 1) loadH = 1; 
                     let holesOnDrawW = !(caja.drawW === caja.d && caja.drawD === caja.w && caja.w !== caja.d);
                     
-                    // Cubierta de Madera
                     let deckGeo = new THREE.BoxGeometry(caja.drawW - 1, 3, caja.drawD - 1); 
                     deckGeo.translate(0, -caja.drawH/2 + 13.5, 0); 
                     cajaGroup.add(new THREE.Mesh(deckGeo, getSolidMaterial('#8B5A2B'))); 
                     cajaGroup.add(new THREE.LineSegments(new THREE.EdgesGeometry(deckGeo), globalMats.boxEdge));
                     
-                    // Patas de la Estiba
                     let sw = holesOnDrawW ? Math.min(12, caja.drawW * 0.15) : (caja.drawW - 1); 
                     let sd = holesOnDrawW ? (caja.drawD - 1) : Math.min(12, caja.drawD * 0.15);
                     for(let i=0; i<3; i++) { 
@@ -244,7 +244,6 @@ function construirEscena3D() {
                         cajaGroup.add(new THREE.LineSegments(new THREE.EdgesGeometry(sGeo), globalMats.boxEdge)); 
                     }
                     
-                    // Carga Útil sobre la Estiba
                     let loadGeo = new THREE.BoxGeometry(caja.drawW - 1, loadH - 0.5, caja.drawD - 1); 
                     loadGeo.translate(0, -caja.drawH/2 + palletH + loadH/2, 0);
                     let loadMesh = new THREE.Mesh(loadGeo, getSolidMaterial(caja.color));
@@ -271,6 +270,35 @@ function construirEscena3D() {
         currentOffsetX -= (contenedor.w + gapX); 
     }); 
     actualizarRenderCajas();
+}
+
+function setCameraView(view) {
+    if (!camera || !controls) return;
+    const { centerX, maxH, maxD } = currentSceneBounds;
+    const targetY = maxH / 2;
+    const targetZ = maxD / 2;
+    
+    controls.target.set(centerX, targetY, targetZ);
+
+    switch(view) {
+        case 'top':
+            camera.position.set(centerX, maxH + maxD * 1.4, targetZ + 0.1);
+            break;
+        case 'front':
+            camera.position.set(centerX, targetY, maxD + maxD * 1.1);
+            break;
+        case 'left':
+            camera.position.set(centerX - maxD * 1.4, targetY, targetZ);
+            break;
+        case 'right':
+            camera.position.set(centerX + maxD * 1.4, targetY, targetZ);
+            break;
+        case 'iso':
+        default:
+            camera.position.set(centerX + maxD * 0.9, maxH * 2.2, maxD * 1.2);
+            break;
+    }
+    controls.update();
 }
 
 function actualizarRenderCajas() {
