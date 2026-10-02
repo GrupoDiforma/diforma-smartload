@@ -1,22 +1,21 @@
 // ==========================================
-// RENDERIZADO Y ESCENA THREE.JS CON GIZMO Y BLOQUEO
+// RENDERIZADO Y ESCENA THREE.JS CON MULTI-SELECCIÓN (CTRL+CLIC) Y BLOQUEO LIMPIO
 // ==========================================
 
 let globalMats = null; 
 let solidMaterialsCache = {}; 
-let stripedMaterialsCache = {};
-let lockedMaterialsCache = {};
+let selectedMaterialsCache = {};
 
 function initGlobalMats() {
     if (globalMats) return;
     globalMats = {
         contFill: new THREE.MeshBasicMaterial({color: 0x99b4d1, transparent: true, opacity: 0.15, side: THREE.DoubleSide}),
         contEdge: new THREE.LineBasicMaterial({color: 0x6688aa, linewidth: 2}),
-        contFillSel: new THREE.MeshBasicMaterial({color: 0xffeb3b, transparent: true, opacity: 0.3, side: THREE.DoubleSide}),
-        contEdgeSel: new THREE.LineBasicMaterial({color: 0xff9800, linewidth: 3}),
-        boxEdge: new THREE.LineBasicMaterial({color: 0x333333}), 
-        boxEdgeSel: new THREE.LineBasicMaterial({color: 0x0078d4, linewidth: 3}),
-        boxEdgeLocked: new THREE.LineBasicMaterial({color: 0xd13438, linewidth: 3})
+        contFillSel: new THREE.MeshBasicMaterial({color: 0x0067c0, transparent: true, opacity: 0.25, side: THREE.DoubleSide}),
+        contEdgeSel: new THREE.LineBasicMaterial({color: 0x0067c0, linewidth: 3}),
+        boxEdge: new THREE.LineBasicMaterial({color: 0x333333, linewidth: 1}), 
+        boxEdgeSel: new THREE.LineBasicMaterial({color: 0x0067c0, linewidth: 2.5}),
+        boxEdgeLocked: new THREE.LineBasicMaterial({color: 0xd13438, linewidth: 2.5})
     };
 }
 
@@ -25,48 +24,16 @@ function getSolidMaterial(colorHex) {
     return solidMaterialsCache[colorHex]; 
 }
 
-function getStripedMaterial(baseColorHex) {
-    if(!stripedMaterialsCache[baseColorHex]) {
-        const canvas = document.createElement('canvas'); 
-        canvas.width = 64; 
-        canvas.height = 64; 
-        const ctx = canvas.getContext('2d');
-        ctx.fillStyle = baseColorHex; 
-        ctx.fillRect(0,0,64,64); 
-        ctx.lineWidth = 12; 
-        ctx.strokeStyle = 'rgba(0, 120, 212, 0.6)'; 
-        ctx.beginPath(); 
-        for(let i=-64; i<128; i+=20) { ctx.moveTo(i, 0); ctx.lineTo(i+64, 64); } 
-        ctx.stroke();
-        
-        const tex = new THREE.CanvasTexture(canvas); 
-        tex.wrapS = THREE.RepeatWrapping; 
-        tex.wrapT = THREE.RepeatWrapping;
-        stripedMaterialsCache[baseColorHex] = new THREE.MeshLambertMaterial({ map: tex });
+function getSelectedMaterial(baseColorHex) {
+    if(!selectedMaterialsCache[baseColorHex]) {
+        const c = new THREE.Color(baseColorHex);
+        selectedMaterialsCache[baseColorHex] = new THREE.MeshLambertMaterial({ 
+            color: c,
+            emissive: new THREE.Color(0x112244),
+            emissiveIntensity: 0.35
+        });
     } 
-    return stripedMaterialsCache[baseColorHex];
-}
-
-function getLockedMaterial(baseColorHex) {
-    if(!lockedMaterialsCache[baseColorHex]) {
-        const canvas = document.createElement('canvas'); 
-        canvas.width = 64; 
-        canvas.height = 64; 
-        const ctx = canvas.getContext('2d');
-        ctx.fillStyle = baseColorHex; 
-        ctx.fillRect(0,0,64,64); 
-        ctx.lineWidth = 14; 
-        ctx.strokeStyle = 'rgba(209, 52, 56, 0.85)'; 
-        ctx.beginPath(); 
-        for(let i=-64; i<128; i+=18) { ctx.moveTo(i, 0); ctx.lineTo(i+64, 64); } 
-        ctx.stroke();
-        
-        const tex = new THREE.CanvasTexture(canvas); 
-        tex.wrapS = THREE.RepeatWrapping; 
-        tex.wrapT = THREE.RepeatWrapping;
-        lockedMaterialsCache[baseColorHex] = new THREE.MeshLambertMaterial({ map: tex });
-    } 
-    return lockedMaterialsCache[baseColorHex];
+    return selectedMaterialsCache[baseColorHex];
 }
 
 let scene, camera, renderer, controls, transformControls, mainGroup; 
@@ -75,6 +42,9 @@ let raycaster = new THREE.Raycaster();
 let mouse = new THREE.Vector2(); 
 let objectsInteractables = []; 
 let is3DInitialized = false;
+
+// Conjunto para selección múltiple
+let selectedUUIDsSet = new Set();
 
 function init3D() {
     if(is3DInitialized) return; 
@@ -92,7 +62,7 @@ function init3D() {
     // GIZMO DE TRANSFORMACIÓN Y MOVIMIENTO MANUAL
     transformControls = new THREE.TransformControls(camera, renderer.domElement);
     transformControls.setMode('translate');
-    transformControls.setTranslationSnap(1); // Ajuste fino a 1 cm
+    transformControls.setTranslationSnap(1); 
     scene.add(transformControls);
 
     transformControls.addEventListener('dragging-changed', function (event) {
@@ -105,15 +75,10 @@ function init3D() {
             const uuid = activeMesh.userData.uuid;
             const inst = instanciasCajas.find(i => i.uuid === uuid);
             if (inst) {
-                const cont = contenedoresFisicos[inst.contIdx || 0];
                 const offsetX = activeMesh.userData.offsetX || 0;
-                
-                // Nuevas coordenadas redondeadas
                 inst.x = Math.round(activeMesh.position.x - inst.drawW / 2 - offsetX);
                 inst.y = Math.round(activeMesh.position.y - inst.drawH / 2);
                 inst.z = Math.round(activeMesh.position.z - inst.drawD / 2);
-                
-                // Marcar automáticamente como bloqueada al mover manualmente
                 inst.locked = true;
                 
                 actualizarMetricasGlobales();
@@ -264,35 +229,28 @@ function construirEscena3D() {
 
 function actualizarRenderCajas() {
     const selectedIdx = document.getElementById('view-cont-select').value;
-    let selectedMeshFound = null;
+    let primarySelectedMesh = null;
 
     mainGroup.children.forEach(obj => {
         if(obj.userData.uuid) { 
-            let isSelected = (obj.userData.uuid === selectedMeshUUID || String(obj.userData.groupId) === String(selectedGroupId)); 
-            let inst = instanciasCajas.find(i => i.uuid === obj.userData.uuid); 
-            let isLocked = inst ? inst.locked : false; 
+            let isSelected = selectedUUIDsSet.has(obj.userData.uuid) || (selectedGroupId && String(obj.userData.groupId) === String(selectedGroupId)); 
             
-            if (isLocked) {
-                obj.material = getLockedMaterial(obj.userData.color);
-            } else if (isSelected) {
-                obj.material = getStripedMaterial(obj.userData.color);
+            if (isSelected) {
+                obj.material = getSelectedMaterial(obj.userData.color);
+                if (!primarySelectedMesh) primarySelectedMesh = obj;
             } else {
                 obj.material = getSolidMaterial(obj.userData.color);
-            }
-
-            if (isSelected && !selectedMeshFound) {
-                selectedMeshFound = obj;
             }
         }
         if(obj.userData.isEdge) { 
             let inst = instanciasCajas.find(i => i.uuid === obj.userData.parentUUID);
-            let isSelected = (obj.userData.parentUUID === selectedMeshUUID || String(inst?.groupId) === String(selectedGroupId)); 
+            let isSelected = selectedUUIDsSet.has(obj.userData.parentUUID) || (selectedGroupId && String(inst?.groupId) === String(selectedGroupId)); 
             let isLocked = inst ? inst.locked : false;
 
-            if (isLocked) {
-                obj.material = globalMats.boxEdgeLocked;
-            } else if (isSelected) {
+            if (isSelected) {
                 obj.material = globalMats.boxEdgeSel;
+            } else if (isLocked) {
+                obj.material = globalMats.boxEdgeLocked;
             } else {
                 obj.material = globalMats.boxEdge;
             }
@@ -305,8 +263,8 @@ function actualizarRenderCajas() {
         }
     });
 
-    if (selectedMeshFound && transformControls) {
-        transformControls.attach(selectedMeshFound);
+    if (primarySelectedMesh && transformControls) {
+        transformControls.attach(primarySelectedMesh);
     } else if (transformControls) {
         transformControls.detach();
     }
@@ -321,16 +279,34 @@ function onMouseClick(event) {
     raycaster.setFromCamera(mouse, camera); 
     const intersects = raycaster.intersectObjects(objectsInteractables);
     
+    const isMultiSelect = event.ctrlKey || event.metaKey;
+
     if (intersects.length > 0) { 
         let clickedUUID = intersects[0].object.userData.uuid; 
-        selectedMeshUUID = (selectedMeshUUID === clickedUUID) ? null : clickedUUID; 
-        selectedGroupId = null; 
-        actualizarTabla(); 
+
+        if (isMultiSelect) {
+            if (selectedUUIDsSet.has(clickedUUID)) {
+                selectedUUIDsSet.delete(clickedUUID);
+            } else {
+                selectedUUIDsSet.add(clickedUUID);
+            }
+            selectedGroupId = null;
+        } else {
+            if (selectedUUIDsSet.has(clickedUUID) && selectedUUIDsSet.size === 1) {
+                selectedUUIDsSet.clear();
+            } else {
+                selectedUUIDsSet.clear();
+                selectedUUIDsSet.add(clickedUUID);
+            }
+            selectedGroupId = null;
+        }
     } else { 
-        selectedMeshUUID = null; 
-        selectedGroupId = null; 
-        actualizarTabla(); 
+        if (!isMultiSelect) {
+            selectedUUIDsSet.clear();
+            selectedGroupId = null;
+        }
     } 
+    actualizarTabla(); 
     actualizarRenderCajas(); 
 }
 

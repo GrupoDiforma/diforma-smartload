@@ -5,7 +5,6 @@ const APP_VERSION = "V14.0";
 const BACKEND_URL = "https://fuzzy-cod-97vpvvj6qp6j2p764-5000.app.github.dev/optimizar";
 
 let currentFileHandle = null; 
-let selectedMeshUUID = null; 
 let selectedGroupId = null;  
 let listaEmpaque = []; 
 let instanciasCajas = []; 
@@ -281,7 +280,7 @@ function updateFitCalc() {
 }
 
 function limpiarTodo() {
-    listaEmpaque = []; instanciasCajas = []; contenedoresFisicos = []; selectedGroupId = null; selectedMeshUUID = null; currentFileHandle = null;
+    listaEmpaque = []; instanciasCajas = []; contenedoresFisicos = []; selectedGroupId = null; if (typeof selectedUUIDsSet !== 'undefined') selectedUUIDsSet.clear(); currentFileHandle = null;
     document.getElementById('save-filename').value = 'MiCargaLoad';
     actualizarTabla(); const defaultType = document.getElementById('ribbon-cont-type').value || '40ft'; contenedoresFisicos = [crearContenedor(defaultType)]; actualizarUIContenedores();
 }
@@ -300,7 +299,17 @@ function guardarItem() {
   cerrarModalCaja(); actualizarTabla(); optimizarCarga();
 }
 
-function seleccionarFila(id) { id = String(id); if (String(selectedGroupId) === id) { selectedGroupId = null; } else { selectedGroupId = id; } selectedMeshUUID = null; actualizarTabla(); actualizarRenderCajas(); }
+function seleccionarFila(id) { 
+    id = String(id); 
+    if (typeof selectedUUIDsSet !== 'undefined') selectedUUIDsSet.clear();
+    if (String(selectedGroupId) === id) { 
+        selectedGroupId = null; 
+    } else { 
+        selectedGroupId = id; 
+    } 
+    actualizarTabla(); 
+    actualizarRenderCajas(); 
+}
 
 function editarItemLista(idParaEditar = null) {
   const targetId = idParaEditar || selectedGroupId; if(!targetId) { alert("Selecciona un ítem de la lista."); return; }
@@ -320,10 +329,9 @@ function actualizarTabla() {
   const tbody = document.getElementById('table-body'); let html = '';
   listaEmpaque.forEach(item => {
     const isSel = String(item.id) === String(selectedGroupId) ? 'selected' : ''; 
-    let icono = item.shape === 'barrel' ? '🛢️' : (item.shape === 'pallet' ? '🪵' : '📦'); 
+    let icono = item.shape === 'barrel' ? '🛢️️' : (item.shape === 'pallet' ? '🪵' : '📦'); 
     if(item.dangerous) icono = '☣️ ' + icono;
     
-    // Indicador visual de elemento con instancias bloqueadas
     let tieneBloqueados = instanciasCajas.some(inst => String(inst.groupId) === String(item.id) && inst.locked);
     if (tieneBloqueados) icono = '🔒 ' + icono;
 
@@ -472,19 +480,20 @@ function actualizarPanelDerecho() {
 
 function bloquearSeleccion(lockState) { 
     let changed = false; 
-    if (selectedGroupId) { 
+    if (typeof selectedUUIDsSet !== 'undefined' && selectedUUIDsSet.size > 0) {
+        instanciasCajas.forEach(inst => {
+            if (selectedUUIDsSet.has(inst.uuid)) {
+                inst.locked = lockState;
+                changed = true;
+            }
+        });
+    } else if (selectedGroupId) { 
         instanciasCajas.forEach(inst => { 
             if (String(inst.groupId) === String(selectedGroupId)) { 
                 inst.locked = lockState; 
                 changed = true; 
             } 
         }); 
-    } else if (selectedMeshUUID) { 
-        let inst = instanciasCajas.find(i => i.uuid === selectedMeshUUID); 
-        if (inst) { 
-            inst.locked = lockState; 
-            changed = true; 
-        } 
     } 
     if (changed) {
         actualizarTabla();
