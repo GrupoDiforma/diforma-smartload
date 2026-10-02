@@ -224,26 +224,86 @@ function construirEscena3D() {
                     let palletH = 15; 
                     let loadH = caja.drawH - palletH; 
                     if (loadH < 1) loadH = 1; 
-                    let holesOnDrawW = !(caja.drawW === caja.d && caja.drawD === caja.w && caja.w !== caja.d);
                     
-                    let deckGeo = new THREE.BoxGeometry(caja.drawW - 1, 3, caja.drawD - 1); 
-                    deckGeo.translate(0, -caja.drawH/2 + 13.5, 0); 
+                    let deckThick = 2.0;
+                    let topStrH = 2.0;
+                    let notchH = 9.0;
+                    let botThick = 2.0;
+                    let strThick = 8.0; // Espesor de tirantes ajustado a 8 cm
+                    
+                    // 1. CUBIERTA SUPERIOR (DECK)
+                    let deckGeo = new THREE.BoxGeometry(caja.drawW - 1, deckThick, caja.drawD - 1); 
+                    deckGeo.translate(0, -caja.drawH/2 + 14, 0); 
                     cajaGroup.add(new THREE.Mesh(deckGeo, getSolidMaterial('#8B5A2B'))); 
                     cajaGroup.add(new THREE.LineSegments(new THREE.EdgesGeometry(deckGeo), globalMats.boxEdge));
                     
-                    let sw = holesOnDrawW ? Math.min(12, caja.drawW * 0.15) : (caja.drawW - 1); 
-                    let sd = holesOnDrawW ? (caja.drawD - 1) : Math.min(12, caja.drawD * 0.15);
-                    for(let i=0; i<3; i++) { 
-                        let sGeo = new THREE.BoxGeometry(sw, 12, sd); 
-                        let px = 0; 
-                        let pz = 0; 
-                        if (holesOnDrawW) { if(i===0) px = -caja.drawW/2 + sw/2 + 0.5; if(i===2) px = caja.drawW/2 - sw/2 - 0.5; } 
-                        else { if(i===0) pz = -caja.drawD/2 + sd/2 + 0.5; if(i===2) pz = caja.drawD/2 - sd/2 - 0.5; } 
-                        sGeo.translate(px, -caja.drawH/2 + 6, pz); 
-                        cajaGroup.add(new THREE.Mesh(sGeo, getSolidMaterial('#8B5A2B'))); 
-                        cajaGroup.add(new THREE.LineSegments(new THREE.EdgesGeometry(sGeo), globalMats.boxEdge)); 
+                    // 2. ESTRUCTURA INFERIOR NOTCHED STRINGER (TIRANTES ROBUSTOS DE 8CM)
+                    let isLongerOnW = (caja.drawW >= caja.drawD);
+                    let bLen = Math.min(20, (isLongerOnW ? caja.drawW : caja.drawD) * 0.18);
+
+                    if (isLongerOnW) {
+                        for (let i = 0; i < 3; i++) {
+                            let pz = 0;
+                            if (i === 0) pz = -caja.drawD/2 + strThick/2 + 0.5;
+                            if (i === 2) pz = caja.drawD/2 - strThick/2 - 0.5;
+
+                            // Tira superior del tirante (8cm ancho x 2cm alto)
+                            let topStrGeo = new THREE.BoxGeometry(caja.drawW - 1, topStrH, strThick);
+                            topStrGeo.translate(0, -caja.drawH/2 + 12, pz);
+                            cajaGroup.add(new THREE.Mesh(topStrGeo, getSolidMaterial('#8B5A2B')));
+                            cajaGroup.add(new THREE.LineSegments(new THREE.EdgesGeometry(topStrGeo), globalMats.boxEdge));
+
+                            // 3 Tacos inferiores para muescas (8cm ancho x 9cm alto)
+                            for (let j = 0; j < 3; j++) {
+                                let px = 0;
+                                if (j === 0) px = -caja.drawW/2 + bLen/2 + 0.5;
+                                if (j === 2) px = caja.drawW/2 - bLen/2 - 0.5;
+
+                                let blockGeo = new THREE.BoxGeometry(bLen, notchH, strThick);
+                                blockGeo.translate(px, -caja.drawH/2 + 6.5, pz);
+                                cajaGroup.add(new THREE.Mesh(blockGeo, getSolidMaterial('#8B5A2B')));
+                                cajaGroup.add(new THREE.LineSegments(new THREE.EdgesGeometry(blockGeo), globalMats.boxEdge));
+                            }
+
+                            // Tabla base inferior continua (8cm ancho x 2cm alto)
+                            let botGeo = new THREE.BoxGeometry(caja.drawW - 1, botThick, strThick);
+                            botGeo.translate(0, -caja.drawH/2 + 1, pz);
+                            cajaGroup.add(new THREE.Mesh(botGeo, getSolidMaterial('#8B5A2B')));
+                            cajaGroup.add(new THREE.LineSegments(new THREE.EdgesGeometry(botGeo), globalMats.boxEdge));
+                        }
+                    } else {
+                        for (let i = 0; i < 3; i++) {
+                            let px = 0;
+                            if (i === 0) px = -caja.drawW/2 + strThick/2 + 0.5;
+                            if (i === 2) px = caja.drawW/2 - strThick/2 - 0.5;
+
+                            // Tira superior del tirante (8cm ancho x 2cm alto)
+                            let topStrGeo = new THREE.BoxGeometry(strThick, topStrH, caja.drawD - 1);
+                            topStrGeo.translate(px, -caja.drawH/2 + 12, 0);
+                            cajaGroup.add(new THREE.Mesh(topStrGeo, getSolidMaterial('#8B5A2B')));
+                            cajaGroup.add(new THREE.LineSegments(new THREE.EdgesGeometry(topStrGeo), globalMats.boxEdge));
+
+                            // 3 Tacos inferiores para muescas (8cm ancho x 9cm alto)
+                            for (let j = 0; j < 3; j++) {
+                                let pz = 0;
+                                if (j === 0) pz = -caja.drawD/2 + bLen/2 + 0.5;
+                                if (j === 2) pz = caja.drawD/2 - bLen/2 - 0.5;
+
+                                let blockGeo = new THREE.BoxGeometry(strThick, notchH, bLen);
+                                blockGeo.translate(px, -caja.drawH/2 + 6.5, pz);
+                                cajaGroup.add(new THREE.Mesh(blockGeo, getSolidMaterial('#8B5A2B')));
+                                cajaGroup.add(new THREE.LineSegments(new THREE.EdgesGeometry(blockGeo), globalMats.boxEdge));
+                            }
+
+                            // Tabla base inferior continua (8cm ancho x 2cm alto)
+                            let botGeo = new THREE.BoxGeometry(strThick, botThick, caja.drawD - 1);
+                            botGeo.translate(px, -caja.drawH/2 + 1, 0);
+                            cajaGroup.add(new THREE.Mesh(botGeo, getSolidMaterial('#8B5A2B')));
+                            cajaGroup.add(new THREE.LineSegments(new THREE.EdgesGeometry(botGeo), globalMats.boxEdge));
+                        }
                     }
                     
+                    // 3. CARGA SOBRE LA ESTIBA
                     let loadGeo = new THREE.BoxGeometry(caja.drawW - 1, loadH - 0.5, caja.drawD - 1); 
                     loadGeo.translate(0, -caja.drawH/2 + palletH + loadH/2, 0);
                     let loadMesh = new THREE.Mesh(loadGeo, getSolidMaterial(caja.color));
@@ -456,21 +516,74 @@ function updateMini3D() {
         let loadH = h - palletH; 
         if(loadH<1) loadH=1; 
         
-        let deckGeo = new THREE.BoxGeometry(w, 3, d); 
-        deckGeo.translate(0, -h/2 + palletH - 1.5, 0); 
+        let deckThick = 2.0;
+        let topStrH = 2.0;
+        let notchH = 9.0;
+        let botThick = 2.0;
+        let strThick = 8.0;
+        
+        let deckGeo = new THREE.BoxGeometry(w, deckThick, d); 
+        deckGeo.translate(0, -h/2 + palletH - deckThick/2, 0); 
         miniGroup.add(new THREE.Mesh(deckGeo, getSolidMaterial('#8B5A2B'))); 
         miniGroup.add(new THREE.LineSegments(new THREE.EdgesGeometry(deckGeo), edgeMat));
         
-        let sw = Math.min(12, w * 0.15); 
-        let sh = palletH - 3;
-        for(let i=0; i<3; i++) { 
-            let sGeo = new THREE.BoxGeometry(sw, sh, d); 
-            let px = -w/2 + sw/2; 
-            if(i===1) px = 0; 
-            if(i===2) px = w/2 - sw/2; 
-            sGeo.translate(px, -h/2 + sh/2, 0); 
-            miniGroup.add(new THREE.Mesh(sGeo, getSolidMaterial('#8B5A2B'))); 
-            miniGroup.add(new THREE.LineSegments(new THREE.EdgesGeometry(sGeo), edgeMat)); 
+        let isLongerOnW = (w >= d);
+        let bLen = Math.min(20, (isLongerOnW ? w : d) * 0.18);
+
+        if (isLongerOnW) {
+            for (let i = 0; i < 3; i++) {
+                let pz = 0;
+                if (i === 0) pz = -d/2 + strThick/2;
+                if (i === 2) pz = d/2 - strThick/2;
+
+                let topStrGeo = new THREE.BoxGeometry(w, topStrH, strThick);
+                topStrGeo.translate(0, -h/2 + 12, pz);
+                miniGroup.add(new THREE.Mesh(topStrGeo, getSolidMaterial('#8B5A2B')));
+                miniGroup.add(new THREE.LineSegments(new THREE.EdgesGeometry(topStrGeo), edgeMat));
+
+                for (let j = 0; j < 3; j++) {
+                    let px = 0;
+                    if (j === 0) px = -w/2 + bLen/2;
+                    if (j === 2) px = w/2 - bLen/2;
+
+                    let blockGeo = new THREE.BoxGeometry(bLen, notchH, strThick);
+                    blockGeo.translate(px, -h/2 + 6.5, pz);
+                    miniGroup.add(new THREE.Mesh(blockGeo, getSolidMaterial('#8B5A2B')));
+                    miniGroup.add(new THREE.LineSegments(new THREE.EdgesGeometry(blockGeo), edgeMat));
+                }
+
+                let botGeo = new THREE.BoxGeometry(w, botThick, strThick);
+                botGeo.translate(0, -h/2 + 1, pz);
+                miniGroup.add(new THREE.Mesh(botGeo, getSolidMaterial('#8B5A2B')));
+                miniGroup.add(new THREE.LineSegments(new THREE.EdgesGeometry(botGeo), edgeMat));
+            }
+        } else {
+            for (let i = 0; i < 3; i++) {
+                let px = 0;
+                if (i === 0) px = -w/2 + strThick/2;
+                if (i === 2) px = w/2 - strThick/2;
+
+                let topStrGeo = new THREE.BoxGeometry(strThick, topStrH, d);
+                topStrGeo.translate(px, -h/2 + 12, 0);
+                miniGroup.add(new THREE.Mesh(topStrGeo, getSolidMaterial('#8B5A2B')));
+                miniGroup.add(new THREE.LineSegments(new THREE.EdgesGeometry(topStrGeo), edgeMat));
+
+                for (let j = 0; j < 3; j++) {
+                    let pz = 0;
+                    if (j === 0) pz = -d/2 + bLen/2;
+                    if (j === 2) pz = d/2 - bLen/2;
+
+                    let blockGeo = new THREE.BoxGeometry(strThick, notchH, bLen);
+                    blockGeo.translate(px, -h/2 + 6.5, pz);
+                    miniGroup.add(new THREE.Mesh(blockGeo, getSolidMaterial('#8B5A2B')));
+                    miniGroup.add(new THREE.LineSegments(new THREE.EdgesGeometry(blockGeo), edgeMat));
+                }
+
+                let botGeo = new THREE.BoxGeometry(strThick, botThick, d);
+                botGeo.translate(px, -h/2 + 1, 0);
+                miniGroup.add(new THREE.Mesh(botGeo, getSolidMaterial('#8B5A2B')));
+                miniGroup.add(new THREE.LineSegments(new THREE.EdgesGeometry(botGeo), edgeMat));
+            }
         }
         
         let loadGeo = new THREE.BoxGeometry(w, loadH, d); 
